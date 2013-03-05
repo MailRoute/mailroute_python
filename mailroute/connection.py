@@ -78,6 +78,8 @@ class ConnectionV1(object):
 
                 self._schemas[cname] = {'list_endpoint': descr['list_endpoint']}
                 self._schemas[cname]['schema'] = self._grab(self._server(schema_path))
+
+                return self._schemas[cname]
             except AnswerError, e:
                 raise CanNotInitSchema, e
 
