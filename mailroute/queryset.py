@@ -20,33 +20,79 @@ class NotUniqueError(OperationError):
     pass
 
 
-class QNode(object):
-    def get(self):
-        pass
+class QuerySet(object):
 
-    def create(self):
-        pass
+    def __init__(self, filters={}):
+        self._filters = filters
+        self._cached = None
+
+    @classmethod
+    def get(cls, id):
+        # TODO: refactor this
+        import connection
+        c = connection._default_connection
+        o = cls.Entity()
+        o._fill(c._grab(c._object_id(cls.Entity.Meta.entity_name, id)))
+        return o
+
+    @classmethod
+    def create(cls, initial=None):
+        if not initial:
+            initial = {}
+        o = cls.Entity()
+        o._fill(initial)
+        return o
 
     def bulk_create(self):
         pass
 
-    def all(self):
-        return QuerySet()
+    @classmethod
+    def all(cls):
+        return cls()
 
-    def filter(self, **options):
-        return QuerySet(**options)
+    @classmethod
+    def filter(cls, **options):
+        return cls(filters=options)
 
-    def delete(self):
-        pass
+    @classmethod
+    def delete(cls, resources):
+        import connection
+        c = connection._default_connection
+        for entity in resources:
+            if isinstance(entity, (basestring, int)):
+                oid = str(entity)
+                c._remove(c._object_id(cls.Entity.Meta.entity_name, oid))
+            else:
+                entity.delete()
 
-class QuerySet(QNode):
+    # DON'T MAKE THIS METHODS (limit & offset) as classmethods
+    def limit(self, num):
+        f = dict(self._filters)
+        f['limit'] = num
+        return self.__class__(filters=f)
 
-    def limit(self):
-        pass
+    def offset(self, num):
+        f = dict(self._filters)
+        f['offset'] = num
+        return self.__class__(filters=f)
 
-    def offset(self):
-        pass
+    def order_by(self, rule):
+        f = dict(self._filters)
+        f['order_by'] = rule
+        return self.__class__(filters=f)
 
-    def order_by(self):
-        pass
+    def fetch(self):
+        return list(self)
 
+    def __iter__(self):
+        if self._cached is None:
+            import connection
+            c = connection._default_connection
+            self._cached = ans = c._grab(c._objects(self.__class__.Entity.Meta.entity_name, **self._filters))
+        else:
+            ans = self._cached
+
+        for info in ans['objects']:
+            o = self.__class__.Entity()
+            o._fill(info)
+            yield o

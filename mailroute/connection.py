@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 import requests
 import urlparse
 
@@ -6,6 +7,9 @@ class UnsupportedVersion(Exception):
     pass
 
 class AnswerError(Exception):
+    pass
+
+class AuthorizationError(Exception):
     pass
 
 class CanNotInitSchema(Exception):
@@ -50,21 +54,54 @@ class ConnectionV1(object):
     def _api(self, path):
         return self._server('/api/v1{0}'.format(path))
 
+    def _object_id(self, e_name, id):
+        return self._api('/{0}/{1}/'.format(e_name, id))
+
+    def _objects(self, e_name, **opts):
+        # REWORK THIS SHIT!!!
+        if opts:
+            opts = '?' + '&'.join('{0}={1}'.format(k, v) for k, v in opts.iteritems())
+        else:
+            opts = ''
+        return self._api('/{0}/'.format(e_name) + opts)
+
+    def _send(self, full_path, data):
+        # TODO
+        res = requests.post(full_path, headers=self._auth_header, data=json.dumps(data))
+        res.raise_for_status()
+        return res.json()
+
+    def _update(self, full_path, data):
+        # TODO
+        res = requests.put(full_path, headers=self._auth_header, data=json.dumps(data))
+        print full_path, data
+        res.raise_for_status()
+        return res.json()
+
+    def _remove(self, full_path):
+        # TODO
+        res = requests.delete(full_path, headers=self._auth_header)
+        res.raise_for_status()
+
     def _grab(self, full_path):
         res = requests.get(full_path, headers=self._auth_header)
         if 200 <= res.status_code <= 299:
             return res.json()
         else:
             if 400 <= res.status_code <= 499:
+                if res.status_code == 401:
+                    raise AuthorizationError, full_path
                 raise NotFound, full_path
             elif 500 <= res.status_code <= 599:
-                raise InternalError, res.reason or 'Unknown reason'
+                raise InternalError, (res.status_code, res.reason or 'Unknown reason', full_path)
             else:
-                raise StrangeAnswer, res
+                raise StrangeAnswer, (res, full_path)
 
     def _init_schemas(self):
         try:
             self._s_classes = self._grab(self._api('/'))
+            # TMP! TMP! for branding
+            self._s_classes['brandinginfo'] = {"list_endpoint": "/api/v1/brandinginfo/", "schema": "/api/v1/brandinginfo/schema/"}
         except AnswerError, e:
             raise CanNotInitSchema, e
 
