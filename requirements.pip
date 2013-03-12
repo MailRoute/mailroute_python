@@ -1,0 +1,4 @@
+requests
+sure>=1.1.7
+HTTPretty
+python-dateutil
