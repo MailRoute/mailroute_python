@@ -18,7 +18,7 @@ class TestConnection(unittest.TestCase):
         httpretty.HTTPretty.register_uri(httpretty.HTTPretty.GET, 'https://ci.mailroute.net/api/v1/',
                                          status=500, body=json.dumps({'error': 'Test error'}),
                                          content_type='application/json')
-        mailroute.configure.when.called_with(self.ACCESS_USER).should \
+        mailroute.configure.when.called_with(*self.ACCESS_USER, server='https://ci.mailroute.net').should \
                 .throw(mailroute.CanNotInitSchema, \
                        'InternalError(500, \'INTERNAL SERVER ERROR\', \'https://ci.mailroute.net/api/v1/\')')
 
@@ -27,12 +27,12 @@ class TestConnection(unittest.TestCase):
         httpretty.HTTPretty.register_uri(httpretty.HTTPretty.GET, 'https://ci.mailroute.net/api/v1/',
                                          status=404, body=json.dumps({'error': 'Test error'}),
                                          content_type='application/json')
-        mailroute.configure.when.called_with(self.ACCESS_USER).should \
+        mailroute.configure.when.called_with(*self.ACCESS_USER, server='https://ci.mailroute.net').should \
                 .throw(mailroute.CanNotInitSchema, \
-                       'InternalError(500, \'INTERNAL SERVER ERROR\', \'https://ci.mailroute.net/api/v1/\')')
+                       'NotFound(\'https://admin.mailroute.net/api/v1/\',)')
 
     def test_correct_auth(self):
-        mailroute.configure(*self.ACCESS_USER)
+        mailroute.configure(*self.ACCESS_USER, server='https://ci.mailroute.net')
         mailroute.get_default_connection().should_not.be.empty
 
     def test_unsupported_version(self):
