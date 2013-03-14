@@ -100,8 +100,6 @@ class ConnectionV1(object):
     def _init_schemas(self):
         try:
             self._s_classes = self._grab(self._api('/'))
-            # TMP! TMP! for branding
-            self._s_classes['brandinginfo'] = {"list_endpoint": "/api/v1/brandinginfo/", "schema": "/api/v1/brandinginfo/schema/"}
         except AnswerError, e:
             raise CanNotInitSchema, e
 
