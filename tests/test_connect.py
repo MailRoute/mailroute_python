@@ -11,7 +11,7 @@ class TestConnection(unittest.TestCase):
 
     def test_wrong_auth(self):
         mailroute.configure('invalid_user', 'wrong_key', server='https://ci.mailroute.net')
-        mailroute.get_default_connection().schema_for.when.called_with('wrong_path_too').should \
+        mailroute.get_default_connection().schema_for.when.called_with('domain').should \
             .throw(mailroute.AuthorizationError)
 
     @httpretty.httprettified
