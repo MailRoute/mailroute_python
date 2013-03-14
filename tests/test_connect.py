@@ -33,7 +33,7 @@ class TestConnection(unittest.TestCase):
 
     def test_correct_auth(self):
         mailroute.configure(*self.ACCESS_USER, server='https://ci.mailroute.net')
-        mailroute.get_default_connection().should_not.be.empty
+        mailroute.get_default_connection().should_not.be.none
 
     def test_unsupported_version(self):
         mailroute.configure.when.called_with('user', 'some_correct_key', version=-1).should \
