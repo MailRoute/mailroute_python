@@ -20,7 +20,7 @@ class TestConnection(unittest.TestCase):
                                          content_type='application/json')
         mailroute.configure.when.called_with(*self.ACCESS_USER, server='https://ci.mailroute.net').should \
                 .throw(mailroute.CanNotInitSchema, \
-                       'InternalError(500, \'INTERNAL SERVER ERROR\', \'https://ci.mailroute.net/api/v1/\')')
+                       'InternalError(500, \'Internal Server Error\', \'https://ci.mailroute.net/api/v1/\')')
 
     @httpretty.httprettified
     def test_init_issue(self):
@@ -29,7 +29,7 @@ class TestConnection(unittest.TestCase):
                                          content_type='application/json')
         mailroute.configure.when.called_with(*self.ACCESS_USER, server='https://ci.mailroute.net').should \
                 .throw(mailroute.CanNotInitSchema, \
-                       'NotFound(\'https://admin.mailroute.net/api/v1/\',)')
+                       'NotFound(\'https://ci.mailroute.net/api/v1/\',)')
 
     def test_correct_auth(self):
         mailroute.configure(*self.ACCESS_USER, server='https://ci.mailroute.net')
