@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
-from connection import configure
+from connection import configure, get_default_connection
+from connection import CanNotInitSchema, UnsupportedVersion, AuthorizationError
 
-__all__ = ['configure',]

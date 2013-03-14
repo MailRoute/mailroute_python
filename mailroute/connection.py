@@ -34,9 +34,11 @@ class ConnectionV1(object):
 
     SERVER_URL = 'https://admin.mailroute.net'
 
-    def __init__(self, username, apikey):
+    def __init__(self, username, apikey, server=None):
         self._username = username
         self._apikey = apikey
+        if server is not None:
+            self.SERVER_URL = server
         self._schemas = {}
         self._s_classes = {}
         self._init_schemas()
@@ -125,10 +127,13 @@ _connectors_by_version = {
     1: ConnectionV1,
 }
 
-def configure(username, apikey, version=1):
+def get_default_connection():
+    return _default_connection
+
+def configure(username, apikey, server=None, version=1):
     global _default_connection
 
     if version not in _connectors_by_version:
         raise UnsupportedVersion, version
     ConnectorClass = _connectors_by_version[version]
-    _default_connection = ConnectorClass(username, apikey)
+    _default_connection = ConnectorClass(username, apikey, server=server)
