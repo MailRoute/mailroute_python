@@ -46,6 +46,7 @@ class ConnectionV1(object):
     @property
     def _auth_header(self):
         return {
+            'Accept': 'application/json',
             'Content-Type': 'application/json',
             'Authorization': 'ApiKey {login}:{key}'.format(login=self._username, key=self._apikey),
         }
