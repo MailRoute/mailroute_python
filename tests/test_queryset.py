@@ -9,7 +9,7 @@ class TestQueries(unittest.TestCase):
 
     ACCESS_USER = ('test_python', 'e7b46a7392629c144ee8237454b7888a30f93e69')
 
-    def tearUp(self):
+    def setUp(self):
         mailroute.configure(*self.ACCESS_USER, server='https://ci.mailroute.net')
 
     def test_limits(self):
