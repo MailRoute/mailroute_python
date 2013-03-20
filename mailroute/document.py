@@ -205,6 +205,7 @@ class SmartField(object):
         allowed_types = {
             'string': str,
             'integer': int,
+            'float': float,
             'boolean': bool,
             'datetime': datetime.datetime,
             'related': BaseDocument,    # TODO: check real class
@@ -240,14 +241,13 @@ class DocumentMetaclass(type):
         new_class = super_new(cls, name, bases, attrs)
         return new_class
 
-class BaseDocument(object):
-
+class AbstractDocument(object):
     __metaclass__ = DocumentMetaclass
+
+class BaseDocument(AbstractDocument):
 
     id = SmartField(default=lambda: None)
     uri = SmartField(name='resource_uri', default=lambda: None)
-    created_at = SmartField(default=datetime.datetime.now)
-    updated_at = SmartField(default=datetime.datetime.now)
 
     def __init__(self):
         self._data = {}
@@ -261,7 +261,7 @@ class BaseDocument(object):
     @classmethod
     def _iter_fields(cls):
         for basis in cls.__mro__:
-            if not issubclass(basis, BaseDocument):
+            if not issubclass(basis, AbstractDocument):
                 continue
             for pname in basis._field_names:
                 yield pname, getattr(cls, pname)
@@ -275,7 +275,7 @@ class BaseDocument(object):
     @classmethod
     def is_actual(cls):
         my_schema = cls.schema()['schema']
-        return set(my_schema['fields']) == set(field.name for _, field in cls._iter_fields())
+        return set(my_schema['fields']) == set(field.name for _, field in cls._iter_fields()).union(getattr(cls.Meta, 'ignored', []))
 
     def save(self):
         if not self._changed:           # TODO: check children!!!!!!!
@@ -316,6 +316,7 @@ class BaseDocument(object):
         allowed_types = {
             'string': str,
             'integer': int,
+            'float': float,
             'boolean': lambda v: str(v).lower() == 'true',
             'datetime': lambda v: dateutil.parser.parse(v),
             'related': lambda v: Reference(v), # TODO: try to create necessary class
@@ -333,3 +334,7 @@ class BaseDocument(object):
                     pass
         self._initialized = True
         self._unprotect = False
+
+class BaseCreatableDocument(BaseDocument):
+    created_at = SmartField(default=datetime.datetime.now)
+    updated_at = SmartField(default=datetime.datetime.now)
