@@ -84,6 +84,21 @@ class QuerySet(object):
     def fetch(self):
         return list(self)
 
+    def __len__(self):
+        if self._cached is not None:
+            return len(self._cached['objects'])
+        else:
+            return sum(1 for _ in self)
+
+    def __getitem__(self, ind):
+        if isinstance(ind, slice):
+            if self._cached is not None:
+                return self._cached['objects'][ind]
+            else:
+                return self.fetch()[ind]
+        else:
+            return super(QuerySet, self).__getitem__(ind)
+
     def __iter__(self):
         if self._cached is None:
             import connection
