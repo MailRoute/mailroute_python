@@ -109,7 +109,7 @@ class QuerySet(object):
         if self._cached is None:
             import connection
             c = connection._default_connection
-            self._cached = ans = c._grab(c._objects(self.__class__.Entity.Meta.entity_name, **self._filters))
+            self._cached = ans = c._grab(c._objects(self.__class__.Entity.Meta.entity_name), **self._filters)
         else:
             ans = self._cached
 

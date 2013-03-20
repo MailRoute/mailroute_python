@@ -275,7 +275,8 @@ class BaseDocument(AbstractDocument):
     @classmethod
     def is_actual(cls):
         my_schema = cls.schema()['schema']
-        return set(my_schema['fields']) == set(field.name for _, field in cls._iter_fields()).union(getattr(cls.Meta, 'ignored', []))
+        ignored = getattr(cls.Meta, 'ignored', [])
+        return set(my_schema['fields']).difference(ignored) == set(field.name for _, field in cls._iter_fields()).difference(ignored)
 
     def save(self):
         if not self._changed:           # TODO: check children!!!!!!!

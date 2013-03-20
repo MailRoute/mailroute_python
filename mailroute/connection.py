@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import requests
+import urllib
 import urlparse
 
 class UnsupportedVersion(Exception):
@@ -60,14 +61,8 @@ class ConnectionV1(object):
     def _object_id(self, e_name, id):
         return self._api('/{0}/{1}/'.format(e_name, id))
 
-    def _objects(self, e_name, **opts):
-        # REWORK THIS SHIT!!!
-        if opts:
-            opts = '?' + '&'.join('{0}={1}'.format(k, v) for k, v in opts.iteritems())
-            opts = opts.replace(' ', '%20')
-        else:
-            opts = ''
-        return self._api('/{0}/'.format(e_name) + opts)
+    def _objects(self, e_name):
+        return self._api('/{0}/'.format(e_name))
 
     def _send(self, full_path, data):
         # TODO
@@ -87,19 +82,19 @@ class ConnectionV1(object):
         res = requests.delete(full_path, headers=self._auth_header)
         res.raise_for_status()
 
-    def _grab(self, full_path):
-        res = requests.get(full_path, headers=self._auth_header)
+    def _grab(self, full_path, **opts):
+        res = requests.get(full_path, headers=self._auth_header, params=opts)
         if 200 <= res.status_code <= 299:
             return res.json()
         else:
             if 400 <= res.status_code <= 499:
                 if res.status_code == 401:
-                    raise AuthorizationError, full_path
-                raise NotFound, full_path
+                    raise AuthorizationError, res.url
+                raise NotFound, res.url
             elif 500 <= res.status_code <= 599:
-                raise InternalError, (res.status_code, res.reason or 'Unknown reason', full_path)
+                raise InternalError, (res.status_code, res.reason or 'Unknown reason', res.url)
             else:
-                raise StrangeAnswer, (res, full_path)
+                raise StrangeAnswer, (res, res.url)
 
     def _init_schemas(self):
         try:
