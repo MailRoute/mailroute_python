@@ -84,6 +84,12 @@ class QuerySet(object):
     def fetch(self):
         return list(self)
 
+    def __bool__(self):
+        return len(self) > 0
+
+    def __nonzero__(self):
+        return len(self) > 0
+
     def __len__(self):
         if self._cached is not None:
             return len(self._cached['objects'])
