@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from queryset import QuerySet
 import datetime
 import dateutil.parser
 
@@ -136,7 +135,8 @@ class UnknownType(Exception):
 #             self._instance._mark_as_changed(self._name)
 
 class Reference(object):
-    def __init__(self, link):
+    def __init__(self, Class, link):
+        self._ColClass = Class
         self._link = link
         self._de = None
 
@@ -147,17 +147,18 @@ class Reference(object):
             # TODO: refactor this!!!!
             import connection
             descr = connection._default_connection._grab(connection._default_connection._server(self._link))
-            b = Branding.Entity()              # TODO: some common class instead branding
+            b = self._ColClass.Entity()              # TODO: some common class instead branding
             b._fill(descr)
             self._de = b
             return b
 
 class SmartField(object):
 
-    def __init__(self, name=None, required=False, default=None):
+    def __init__(self, name=None, required=False, default=None, to_collection=None):
         self.name = name
         self.required = required
         self.default = default
+        self._rel_col = to_collection
 
     def has_default(self, instance):
         my_schema = self._get_schema(instance)
@@ -176,6 +177,7 @@ class SmartField(object):
         value = instance._data.get(self.name)
         if isinstance(value, Reference):
             value = value.dereference()
+            print value
             
         if value is None:
             if self.default is None:
@@ -256,6 +258,25 @@ class BaseDocument(object):
     def _mark_as_changed(self, fname):
         self._changed.add(fname)
 
+    @classmethod
+    def _iter_fields(cls):
+        for basis in cls.__mro__:
+            if not issubclass(basis, BaseDocument):
+                continue
+            for pname in basis._field_names:
+                yield pname, getattr(cls, pname)
+
+    @classmethod
+    def schema(cls):
+        import connection
+        c = connection._default_connection
+        return c.schema_for(cls.Meta.entity_name)
+
+    @classmethod
+    def is_actual(cls):
+        my_schema = cls.schema()['schema']
+        return set(my_schema['fields']) == set(field.name for _, field in cls._iter_fields())
+
     def save(self):
         if not self._changed:           # TODO: check children!!!!!!!
             return
@@ -312,36 +333,3 @@ class BaseDocument(object):
                     pass
         self._initialized = True
         self._unprotect = False
-
-
-class Branding(QuerySet):
-    class BrandingEntity(BaseDocument):
-        class Meta:
-            entity_name = 'brandinginfo'
-
-        color = SmartField()
-        customer = SmartField()
-        domain = SmartField()
-        email_from = SmartField()
-        enabled = SmartField()
-        favicon = SmartField()
-        highlight_color = SmartField()
-        logo = SmartField()
-        reseller = SmartField()
-        service_name = SmartField()
-        ssl_cert_passphrase = SmartField()
-        subdomain = SmartField()
-
-    Entity = BrandingEntity
-
-
-class Reseller(QuerySet):
-    class ResellerEntity(BaseDocument):
-        class Meta:
-            entity_name = 'reseller'
-
-        name = SmartField(required=True)
-        allow_customer_branding = SmartField()
-        allow_branding = SmartField()
-        branding_info = SmartField()
-    Entity = ResellerEntity

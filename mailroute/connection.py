@@ -63,6 +63,7 @@ class ConnectionV1(object):
         # REWORK THIS SHIT!!!
         if opts:
             opts = '?' + '&'.join('{0}={1}'.format(k, v) for k, v in opts.iteritems())
+            opts = opts.replace(' ', '%20')
         else:
             opts = ''
         return self._api('/{0}/'.format(e_name) + opts)
