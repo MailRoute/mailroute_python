@@ -30,12 +30,7 @@ class TestSchema(unittest.TestCase):
             mailroute.OutboundServer,
             mailroute.PolicyDomain,
             mailroute.PolicyUser,
-            mailroute.Quarantine,
-            mailroute.QuarantineMessage,
-            mailroute.QuarantineReadonly,
-            mailroute.QuarantineReadonlyMessage,
             mailroute.Reseller,
-            mailroute.WBList,
         ]
 
     @httpretty.httprettified
@@ -46,14 +41,14 @@ class TestSchema(unittest.TestCase):
         mailroute.configure(*self.ACCESS_USER, server='https://ci.mailroute.net')
 
         for QClass in self.entity_classes:
-            QClass.Entity.schema().should_not.be.empty
-            QClass.Entity.is_actual().should.be.true
+            QClass.Entity.schema.when.called_with().should.throw(mailroute.CanNotInitSchema)
 
     def test_all_entities(self):
         mailroute.configure(*self.ACCESS_USER, server='https://ci.mailroute.net')
 
         for QClass in self.entity_classes:
             QClass.Entity.schema().should_not.be.empty
+            print QClass
             QClass.Entity.is_actual().should.be.true
 
 if __name__ == '__main__':
