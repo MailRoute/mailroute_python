@@ -105,7 +105,7 @@ class Customer(QuerySet):
     class CustomerEntity(BaseCreatableDocument):
         class Meta:
             entity_name = 'customer'
-            ignore = ['contacts', 'domains']
+            ignored = ['contacts', 'domains']
 
         name = SmartField(required=True)
         allow_branding = SmartField()
