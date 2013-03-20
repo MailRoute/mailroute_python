@@ -27,13 +27,12 @@ class Reseller(QuerySet):
     class ResellerEntity(BaseCreatableDocument):
         class Meta:
             entity_name = 'reseller'
+            ignore = ['contacts', 'customers']
 
         name = SmartField(required=True)
         allow_customer_branding = SmartField()
         allow_branding = SmartField()
         branding_info = SmartField(to_collection='Branding')
-        contacts = SmartField(to_collection='ContactReseller')
-        customers = SmartField(to_collection='Customer')
     Entity = ResellerEntity
 
 class Admins(QuerySet):
@@ -106,11 +105,10 @@ class Customer(QuerySet):
     class CustomerEntity(BaseCreatableDocument):
         class Meta:
             entity_name = 'customer'
+            ignore = ['contacts', 'domains']
 
         name = SmartField(required=True)
         allow_branding = SmartField()
-        domains = SmartField(to_collection='Domain')
-        contacts = SmartField(to_collection='ContactCustomer')
         branding_info = SmartField(to_collection='Branding')
         is_full_user_list = SmartField()
         reported_user_count = SmartField()
