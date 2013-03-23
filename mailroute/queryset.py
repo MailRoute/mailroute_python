@@ -36,11 +36,9 @@ class QuerySet(object):
         return o
 
     @classmethod
-    def create(cls, initial=None):
-        if not initial:
-            initial = {}
-        o = cls.Entity()
-        o._fill(initial)
+    def create(cls, **initial):
+        o = cls.Entity(pre_filled=initial)
+        o.save()
         return o
 
     def bulk_create(self):
@@ -99,11 +97,21 @@ class QuerySet(object):
     def __getitem__(self, ind):
         if isinstance(ind, slice):
             if self._cached is not None:
-                return self._cached['objects'][ind]
+                infos = self._cached['objects'][ind]
+                objs = []
+                for info in infos:
+                    o = self.__class__.Entity(pre_filled=info)
+                    objs.append(o)
+                return objs
             else:
                 return self.fetch()[ind]
         else:
-            return super(QuerySet, self).__getitem__(ind)
+            if self._cached is not None:
+                info = self._cached['objects'][ind]
+                o = self.__class__.Entity(pre_filled=info)
+                return o
+            else:
+                return self.fetch()[ind]
 
     def __iter__(self):
         if self._cached is None:

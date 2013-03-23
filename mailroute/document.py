@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import inspect
+import importlib
 import datetime
 import dateutil.parser
 
@@ -134,21 +136,40 @@ class UnknownType(Exception):
 #         if hasattr(self._instance, '_mark_as_changed'):
 #             self._instance._mark_as_changed(self._name)
 
-class Reference(object):
-    def __init__(self, Class, link):
-        self._ColClass = Class
+class LazyLink(object):
+    def __init__(self, link):
         self._link = link
+
+    def force(self):
+        # TODO: refactor this!!!!
+        import connection
+        c = connection.get_default_connection()
+        descr = c._grab(c._server(self._link))
+
+    def __ne__(self, another):
+        return self._link != another._link
+
+    def __eq__(self, another):
+        return self._link == another._link
+
+class Reference(object):
+    def __init__(self, FieldClass, link):
+        self._ColClass = FieldClass._rel_col
+        self._FieldClass = FieldClass
+        self._path = link
         self._de = None
 
-    def dereference(self):
+    def dereference(self, instance_module):
         if self._de:
             return self._de
         else:
-            # TODO: refactor this!!!!
-            import connection
-            descr = connection._default_connection._grab(connection._default_connection._server(self._link))
-            b = self._ColClass.Entity()              # TODO: some common class instead branding
-            b._fill(descr)
+            if isinstance(self._ColClass, basestring):
+                try:
+                    mod = importlib.import_module('.'.join(self._ColClass.split('.')[:-1]))
+                except:
+                    mod = instance_module
+                _ColClass = getattr(mod, self._ColClass.split('.')[-1])
+            b = _ColClass.Entity(pre_filled=LazyLink(self._path))
             self._de = b
             return b
 
@@ -176,8 +197,7 @@ class SmartField(object):
             return self
         value = instance._data.get(self.name)
         if isinstance(value, Reference):
-            value = value.dereference()
-            print value
+            value = value.dereference(importlib.import_module(instance.__module__))
             
         if value is None:
             if self.default is None:
@@ -249,11 +269,32 @@ class BaseDocument(AbstractDocument):
     id = SmartField(default=lambda: None)
     uri = SmartField(name='resource_uri', default=lambda: None)
 
-    def __init__(self):
+    def __init__(self, pre_filled=None):
         self._data = {}
         self._initialized = True
         self._unprotect = False
-        self._changed = set()
+        self._dereferenced = True
+        if pre_filled and isinstance(pre_filled, dict):
+            self._fill(pre_filled)
+            self._changed = set(pre_filled.keys())
+        elif isinstance(pre_filled, LazyLink):
+            self._dereferenced = False
+            self.__fill_data = pre_filled
+            self._changed = set()
+            def __getattribute__(self, key):
+                del self.__getattribute__
+                pre_filled = self.__fill_data.force()
+                self._fill(pre_filled)
+                self._changed = set(pre_filled.keys())
+                return getattr(self, key)
+            def __setattr__(self, key, value):
+                self.__fill_data
+                return setattr(self, key, value)
+
+            self.__getattribute__ = __getattribute__
+            self.__setattr__ = __setattr__
+        else:
+            self._changed = set()
 
     def _mark_as_changed(self, fname):
         self._changed.add(fname)
@@ -282,21 +323,16 @@ class BaseDocument(AbstractDocument):
         if not self._changed:           # TODO: check children!!!!!!!
             return
         new_values = {}
-        for basis in self.__class__.__mro__:
-            if not issubclass(basis, BaseDocument):
-                continue
-            for pname in basis._field_names:
-                field = getattr(self.__class__, pname)
-                fname = field.name
-                if not field.has_default(instance=self) and fname in self._changed:
-                    new_values[fname] = getattr(self, pname)
+        for pname, field in self._iter_fields():
+            fname = field.name
+            if not field.has_default(instance=self) and fname in self._changed:
+                new_values[fname] = getattr(self, pname)
         import connection
         c = connection._default_connection
         if self.id is None:
             res = c._send(c._objects(self.Meta.entity_name), new_values)
         else:
             res = c._update(c._object_id(self.Meta.entity_name, self.id), new_values)
-        print res
         self._fill(res)
         self._changed = set()
 
@@ -320,21 +356,33 @@ class BaseDocument(AbstractDocument):
             'float': float,
             'boolean': lambda v: str(v).lower() == 'true',
             'datetime': lambda v: dateutil.parser.parse(v),
-            'related': lambda v: Reference(v), # TODO: try to create necessary class
+            'related': lambda cls_field, v: Reference(cls_field, v), # TODO: try to create necessary class
         }
-        for basis in self.__class__.__mro__:
-            if not issubclass(basis, BaseDocument):
-                continue
-            for pname in basis._field_names:
-                fname = getattr(self.__class__, pname).name
-                converter = allowed_types[my_schema['fields'][fname]['type']]
-                try:
-                    value = raw_source[fname]
+        for pname, cls_field in self._iter_fields():
+            fname = cls_field.name
+            converter = allowed_types[my_schema['fields'][fname]['type']]
+            try:
+                value = raw_source[fname]
+                if not inspect.isfunction(converter) or len(inspect.getargspec(converter).args) == 1:
                     setattr(self, pname, converter(value))
-                except KeyError:
-                    pass
+                else:
+                    setattr(self, pname, converter(cls_field, value))
+            except KeyError:
+                pass
         self._initialized = True
         self._unprotect = False
+        self._dereferenced = True
+
+    def __ne__(self, another):
+        return not (self == another)
+
+    def __eq__(self, another):
+        if not self._dereferenced and not another._dereferenced:
+            return self.__fill_data == another.__fill_data
+        for pname, field in self._iter_fields():
+            if getattr(self, pname) != getattr(another, pname):
+                return False
+        return True
 
 class BaseCreatableDocument(BaseDocument):
     created_at = SmartField(default=datetime.datetime.now)
