@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import sure
 import json
+import uuid
 import unittest
 import mailroute
 import httpretty
@@ -42,14 +43,14 @@ class TestQueries(unittest.TestCase):
             same_entity.should.be.equal(person)
 
     def test_delete(self):
-        resellers = mailroute.Reseller.filter(name='Testing reseller')
-        if not resellers:
-            mailroute.Reseller.create(name='Testing reseller')
-            resellers = mailroute.Reseller.filter(name='Testing reseller')
+        prefix = uuid.uuid4().hex
 
+        person = mailroute.Reseller.create(name='{0} Reseller'.format(prefix))
+
+        resellers = mailroute.Reseller.filter(name='{0} Reseller'.format(prefix))
         resellers.should_not.be.empty
 
-        person = resellers[0]
+        (person,) = resellers
         old_id = person.id
         person.delete()
         person.id.should.be.none
@@ -61,23 +62,57 @@ class TestQueries(unittest.TestCase):
         resellers = mailroute.Reseller.filter(name='Testing reseller')
         resellers.should.be.empty
 
-    def test_mass_deletion(self):
-        False.should.be.ok
+    def test_mass_deletion_by_instance(self):
+        N = 5
+        prefix = uuid.uuid4().hex
+
+        for i in xrange(N):
+            new_name = '{1} Reseller N{0}'.format(i, prefix)
+            new_one = mailroute.Reseller.create(name=new_name)
+
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
+        len(resellers).should.be.equal(N)
+
+        mailroute.Reseller.delete(resellers)
+
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
+        resellers.should.be.empty
+
+    def test_mass_deletion_by_pk(self):
+        N = 5
+        prefix = uuid.uuid4().hex
+
+        for i in xrange(N):
+            new_name = '{1} Reseller N{0}'.format(i, prefix)
+            new_one = mailroute.Reseller.create(name=new_name)
+
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
+        len(resellers).should.be.equal(N)
+
+        mailroute.Reseller.delete([obj.id for obj in resellers])
+
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
+        resellers.should.be.empty
 
     def test_create(self):
-        N = 10
-        resellers = mailroute.Reseller.filter(name__startswith='Testing reseller N')
-        if not resellers:
-            names = set(entity.name for entity in resellers)
+        N = 3
+        prefix = uuid.uuid4().hex
 
-            for i in xrange(N):
-                new_name = 'Testing reseller N{0}'.format(i)
-                if new_name not in names:
-                    new_one = mailroute.Reseller.create(name=new_name)
-                    new_one.should.be.a('ResellerEntity')
-                    new_one.name.should.be.equal(new_name)
-            resellers = mailroute.Reseller.filter(name__startswith='Testing reseller N')
+        for i in xrange(N):
+            new_name = '{1} Reseller N{0}'.format(i, prefix)
+
+            new_one = mailroute.Reseller.create(name=new_name)
+            new_one.should.be.a(mailroute.Reseller.ResellerEntity)
+            new_one.name.should.be.equal(new_name)
+            new_one.should.be.equal(new_one)
+            new_one.should.be.equal(mailroute.Reseller.get(id=new_one.id))
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
         len(resellers).should.be.equal(N)
+
+        resellers[0].branding_info.should.be.a(mailroute.Branding.BrandingEntity)
+        resellers[0].branding_info.reseller.should.be.equal(resellers[0])
+        for reseller in resellers:
+            reseller.delete()
 
     def test_mass_create(self):
         False.should.be.ok
