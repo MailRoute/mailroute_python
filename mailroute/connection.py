@@ -31,54 +31,70 @@ class NotFound(AnswerError):
 class StrangeAnswer(AnswerError):
     pass
 
+class FinalResource(AnswerError):
+    pass
+
+class CreateError(AnswerError):
+    pass
+
+class UpdateError(AnswerError):
+    pass
+
 class Resource(object):
 
-    def __init__(self, connection, path):
+    def __init__(self, path, final=False, auth=None):
         self.path = path
-        self._conn = connection
+        self._auth = auth if auth is not None else {}
+        self._final = final
 
-    def _send(self, full_path, data):
-        # TODO
-        res = requests.post(full_path, headers=self._conn._auth_header, data=json.dumps(data))
-        res.raise_for_status()
-        return res.json()
-
-    def _update(self, data):
-        res = requests.put(self.path, headers=self._conn._auth_header, data=json.dumps(data))
-        res.raise_for_status()
-        return res.json()
+    def _handle_error(self, error, Error4xx):
+        res = error.response
+        if 400 <= res.status_code <= 499:
+            if res.status_code == 401:
+                raise AuthorizationError, res.url
+            raise Error4xx, res.url
+        elif 500 <= res.status_code <= 599:
+            raise InternalError, (res.status_code, res.reason or 'Unknown reason', res.url)
+        else:
+            raise StrangeAnswer, (res, res.url)
 
     def get(self, **opts):
-        res = requests.get(self.path, headers=self._conn._auth_header, params=opts)
-        if 200 <= res.status_code <= 299:
+        try:
+            res = requests.get(self.path, params=opts, headers=self._auth)
+            res.raise_for_status()
             return res.json()
-        else:
-            if 400 <= res.status_code <= 499:
-                if res.status_code == 401:
-                    raise AuthorizationError, res.url
-                raise NotFound, res.url
-            elif 500 <= res.status_code <= 599:
-                raise InternalError, (res.status_code, res.reason or 'Unknown reason', res.url)
-            else:
-                raise StrangeAnswer, (res, res.url)
+        except requests.exceptions.HTTPError, e:
+            self._handle_error(e, NotFound)
 
     def one(self, id):
-        # TODO: don't allow to use this feature everywhere
-        return Resource(self._conn, urlparse.urljoin(self.path, '/{0}/'.format(id)))
+        if not self._final:
+            return Resource(urlparse.urljoin(self.path, '{0}/'.format(id)), auth=self._auth, final=True)
+        else:
+            raise FinalResource, self.path
 
     def create(self, data):
-        res = requests.post(self.path, headers=self._conn._auth_header, data=json.dumps(data))
-        res.raise_for_status()
-        return res.json()
+        try:
+            res = requests.post(self.path, data=json.dumps(data), headers=self._auth)
+            res.raise_for_status()
+            return res.json()
+        except requests.exceptions.HTTPError, e:
+            self._handle_error(e, CreateError)
 
     def delete(self):
-        res = requests.delete(self.path, headers=self._conn._auth_header)
-        res.raise_for_status()
+        try:
+            res = requests.delete(self.path, headers=self._auth)
+            res.raise_for_status()
+            return True
+        except requests.exceptions.HTTPError, e:
+            self._handle_error(e, NotFound)
 
     def update(self, data):
-        res = requests.put(self.path, headers=self._conn._auth_header, data=json.dumps(data))
-        res.raise_for_status()
-        return res.json()
+        try:
+            res = requests.put(self.path, data=json.dumps(data), headers=self._auth)
+            res.raise_for_status()
+            return res.json()
+        except requests.exceptions.HTTPError, e:
+            self._handle_error(e, UpdateError)
 
 class ConnectionV1(object):
 
@@ -106,12 +122,15 @@ class ConnectionV1(object):
         return urlparse.urljoin(self.SERVER_URL, path)
 
     def resource(self, path):
-        return Resource(self, self._server(path))
+        return Resource(self._server(path), final=True, auth=self._auth_header)
 
     def api_resource(self, path):
-        return Resource(self, self._server('/api/v1{0}'.format(path)))
+        if not path.startswith('/'):
+            path = '/' + path
+        return Resource(self._server('/api/v1{0}'.format(path)), auth=self._auth_header)
 
     def objects(self, e_name):
+        assert '/' not in e_name, 'Name should not contain slashes'
         return self.api_resource('/{0}/'.format(e_name))
 
     def _init_schemas(self):
