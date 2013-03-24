@@ -31,6 +31,55 @@ class NotFound(AnswerError):
 class StrangeAnswer(AnswerError):
     pass
 
+class Resource(object):
+
+    def __init__(self, connection, path):
+        self.path = path
+        self._conn = connection
+
+    def _send(self, full_path, data):
+        # TODO
+        res = requests.post(full_path, headers=self._conn._auth_header, data=json.dumps(data))
+        res.raise_for_status()
+        return res.json()
+
+    def _update(self, data):
+        res = requests.put(self.path, headers=self._conn._auth_header, data=json.dumps(data))
+        res.raise_for_status()
+        return res.json()
+
+    def get(self, **opts):
+        res = requests.get(self.path, headers=self._conn._auth_header, params=opts)
+        if 200 <= res.status_code <= 299:
+            return res.json()
+        else:
+            if 400 <= res.status_code <= 499:
+                if res.status_code == 401:
+                    raise AuthorizationError, res.url
+                raise NotFound, res.url
+            elif 500 <= res.status_code <= 599:
+                raise InternalError, (res.status_code, res.reason or 'Unknown reason', res.url)
+            else:
+                raise StrangeAnswer, (res, res.url)
+
+    def one(self, id):
+        # TODO: don't allow to use this feature everywhere
+        return Resource(self._conn, urlparse.urljoin(self.path, '/{0}/'.format(id)))
+
+    def create(self, data):
+        res = requests.post(self.path, headers=self._conn._auth_header, data=json.dumps(data))
+        res.raise_for_status()
+        return res.json()
+
+    def delete(self):
+        res = requests.delete(self.path, headers=self._conn._auth_header)
+        res.raise_for_status()
+
+    def update(self, data):
+        res = requests.put(self.path, headers=self._conn._auth_header, data=json.dumps(data))
+        res.raise_for_status()
+        return res.json()
+
 class ConnectionV1(object):
 
     SERVER_URL = 'https://admin.mailroute.net'
@@ -42,6 +91,7 @@ class ConnectionV1(object):
             self.SERVER_URL = server
         self._schemas = {}
         self._s_classes = {}
+        self.schema_resource = self.api_resource('/')
         self._init_schemas()
 
     @property
@@ -55,50 +105,18 @@ class ConnectionV1(object):
     def _server(self, path):
         return urlparse.urljoin(self.SERVER_URL, path)
 
-    def _api(self, path):
-        return self._server('/api/v1{0}'.format(path))
+    def resource(self, path):
+        return Resource(self, self._server(path))
 
-    def _object_id(self, e_name, id):
-        return self._api('/{0}/{1}/'.format(e_name, id))
+    def api_resource(self, path):
+        return Resource(self, self._server('/api/v1{0}'.format(path)))
 
-    def _objects(self, e_name):
-        return self._api('/{0}/'.format(e_name))
-
-    def _send(self, full_path, data):
-        # TODO
-        res = requests.post(full_path, headers=self._auth_header, data=json.dumps(data))
-        res.raise_for_status()
-        return res.json()
-
-    def _update(self, full_path, data):
-        # TODO
-        res = requests.put(full_path, headers=self._auth_header, data=json.dumps(data))
-        print full_path, data
-        res.raise_for_status()
-        return res.json()
-
-    def _remove(self, full_path):
-        # TODO
-        res = requests.delete(full_path, headers=self._auth_header)
-        res.raise_for_status()
-
-    def _grab(self, full_path, **opts):
-        res = requests.get(full_path, headers=self._auth_header, params=opts)
-        if 200 <= res.status_code <= 299:
-            return res.json()
-        else:
-            if 400 <= res.status_code <= 499:
-                if res.status_code == 401:
-                    raise AuthorizationError, res.url
-                raise NotFound, res.url
-            elif 500 <= res.status_code <= 599:
-                raise InternalError, (res.status_code, res.reason or 'Unknown reason', res.url)
-            else:
-                raise StrangeAnswer, (res, res.url)
+    def objects(self, e_name):
+        return self.api_resource('/{0}/'.format(e_name))
 
     def _init_schemas(self):
         try:
-            self._s_classes = self._grab(self._api('/'))
+            self._s_classes = self.schema_resource.get()
         except AnswerError, e:
             raise CanNotInitSchema, e
 
@@ -111,7 +129,7 @@ class ConnectionV1(object):
                 schema_path = descr['schema']
 
                 self._schemas[cname] = {'list_endpoint': descr['list_endpoint']}
-                self._schemas[cname]['schema'] = self._grab(self._server(schema_path))
+                self._schemas[cname]['schema'] = self.resource(schema_path).get()
 
                 return self._schemas[cname]
             except (AnswerError, KeyError), e:
