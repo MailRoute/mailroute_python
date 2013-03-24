@@ -34,7 +34,7 @@ class QuerySet(object):
     @classmethod
     def get(cls, id):
         c = connection.get_default_connection()
-        o = cls.Entity(initial=c.objects(cls.entity_name()).one(id).get())
+        o = cls.Entity(pre_filled=c.objects(cls.entity_name()).one(id).get())
         return o
 
     @classmethod
@@ -124,6 +124,5 @@ class QuerySet(object):
             ans = self._cached
 
         for info in ans['objects']:
-            o = self.__class__.Entity()
-            o._fill(info)
+            o = self.__class__.Entity(pre_filled=info)
             yield o

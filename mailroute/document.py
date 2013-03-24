@@ -57,7 +57,7 @@ class SmartField(object):
         self._rel_col = to_collection
 
     def has_default(self, instance):
-        my_schema = self._get_schema(instance)
+        my_schema = instance.schema()
         return not self.required
 
     def __get__(self, instance, owner):
@@ -193,7 +193,7 @@ class BaseDocument(AbstractDocument):
     @classmethod
     def schema(cls):
         c = connection.get_default_connection()
-        return c.schema_for(cls.entity_name())
+        return c.schema_for(cls.entity_name())['schema']
 
     @classmethod
     def is_actual(cls):
