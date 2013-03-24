@@ -3,6 +3,7 @@ import inspect
 import importlib
 import datetime
 import dateutil.parser
+from . import connection
 
 class ReadOnlyError(Exception):
     pass
@@ -11,140 +12,14 @@ class InvalidValue(Exception):
 class UnknownType(Exception):
     pass
 
-# class BasesTuple(tuple):
-#     """Special class to handle introspection of bases tuple in __new__"""
-#     pass
-
-
-# class BaseList(list):
-#     """A special list so we can watch any changes
-#     """
-
-#     _dereferenced = False
-#     _instance = None
-#     _name = None
-
-#     def __init__(self, list_items, instance, name):
-#         self._instance = weakref.proxy(instance)
-#         self._name = name
-#         return super(BaseList, self).__init__(list_items)
-
-#     def __setitem__(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseList, self).__setitem__(*args, **kwargs)
-
-#     def __delitem__(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseList, self).__delitem__(*args, **kwargs)
-
-#     def __getstate__(self):
-#         self.observer = None
-#         return self
-
-#     def __setstate__(self, state):
-#         self = state
-#         return self
-
-#     def append(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseList, self).append(*args, **kwargs)
-
-#     def extend(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseList, self).extend(*args, **kwargs)
-
-#     def insert(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseList, self).insert(*args, **kwargs)
-
-#     def pop(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseList, self).pop(*args, **kwargs)
-
-#     def remove(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseList, self).remove(*args, **kwargs)
-
-#     def reverse(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseList, self).reverse(*args, **kwargs)
-
-#     def sort(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseList, self).sort(*args, **kwargs)
-
-#     def _mark_as_changed(self):
-#         if hasattr(self._instance, '_mark_as_changed'):
-#             self._instance._mark_as_changed(self._name)
-
-
-# class BaseDict(dict):
-#     """A special dict so we can watch any changes
-#     """
-
-#     _dereferenced = False
-#     _instance = None
-#     _name = None
-
-#     def __init__(self, dict_items, instance, name):
-#         self._instance = weakref.proxy(instance)
-#         self._name = name
-#         return super(BaseDict, self).__init__(dict_items)
-
-#     def __setitem__(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseDict, self).__setitem__(*args, **kwargs)
-
-#     def __delete__(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseDict, self).__delete__(*args, **kwargs)
-
-#     def __delitem__(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseDict, self).__delitem__(*args, **kwargs)
-
-#     def __delattr__(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseDict, self).__delattr__(*args, **kwargs)
-
-#     def __getstate__(self):
-#         self.instance = None
-#         self._dereferenced = False
-#         return self
-
-#     def __setstate__(self, state):
-#         self = state
-#         return self
-
-#     def clear(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseDict, self).clear(*args, **kwargs)
-
-#     def pop(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseDict, self).pop(*args, **kwargs)
-
-#     def popitem(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseDict, self).popitem(*args, **kwargs)
-
-#     def update(self, *args, **kwargs):
-#         self._mark_as_changed()
-#         return super(BaseDict, self).update(*args, **kwargs)
-
-#     def _mark_as_changed(self):
-#         if hasattr(self._instance, '_mark_as_changed'):
-#             self._instance._mark_as_changed(self._name)
-
 class LazyLink(object):
     def __init__(self, link):
         self._link = link
 
     def force(self):
         # TODO: refactor this!!!!
-        import connection
         c = connection.get_default_connection()
-        descr = c._grab(c._server(self._link))
+        descr = c.resource(self._link).get()
 
     def __ne__(self, another):
         return self._link != another._link
@@ -185,13 +60,6 @@ class SmartField(object):
         my_schema = self._get_schema(instance)
         return not self.required
 
-    def _get_schema(self, instance):
-        # TODO: refactor this
-        import connection
-        descr = connection._default_connection.schema_for(instance.Meta.entity_name)
-        my_schema = descr['schema']
-        return my_schema
-
     def __get__(self, instance, owner):
         if instance is None:
             return self
@@ -201,7 +69,7 @@ class SmartField(object):
             
         if value is None:
             if self.default is None:
-                my_schema = self._get_schema(instance)
+                my_schema = instance.schema()
                 value = my_schema['fields'][self.name]['default']
             else:
                 value = self.default
@@ -211,28 +79,38 @@ class SmartField(object):
         return value
 
     def __set__(self, instance, value):
-        my_schema = self._get_schema(instance)
+        my_schema = instance.schema()
         if not instance._unprotect and my_schema['fields'][self.name]['readonly']:
             raise ReadOnlyError, self.name
         else:
+            self.validate(instance, value)
             if self.name not in instance._data or instance._data[self.name] != value:
                 instance._data[self.name] = value
                 if instance._initialized:
                     instance._mark_as_changed(self.name)
 
-    def validate(self, value):
-        my_schema = self._get_schema(instance)
+    def validate(self, instance, value):
+        my_schema = instance.schema()
         allowed_types = {
             'string': str,
             'integer': int,
             'float': float,
             'boolean': bool,
             'datetime': datetime.datetime,
-            'related': BaseDocument,    # TODO: check real class
         }
         t = my_schema['fields'][self.name]['type']
         if t not in allowed_types:
-            raise UnknownType, t
+            if t != 'related':
+                raise UnknownType, t
+            else:
+                pass
+                #ok = True
+                #if isinstance(value, Reference) and value.compatible(instance):
+                #    ok = True
+                #elif isinstance(value, BaseDocument): # TODO
+                #    ok = True
+                #if not ok:
+                #    raise ''
         if not isinstance(value, allowed_types[t]):
             raise InvalidValue, (value, t)
 
@@ -281,23 +159,28 @@ class BaseDocument(AbstractDocument):
             self._dereferenced = False
             self.__fill_data = pre_filled
             self._changed = set()
-            def __getattribute__(self, key):
-                del self.__getattribute__
-                pre_filled = self.__fill_data.force()
-                self._fill(pre_filled)
-                self._changed = set(pre_filled.keys())
-                return getattr(self, key)
-            def __setattr__(self, key, value):
-                self.__fill_data
-                return setattr(self, key, value)
-
-            self.__getattribute__ = __getattribute__
-            self.__setattr__ = __setattr__
         else:
             self._changed = set()
 
+    # def __getattribute__(self, key):
+    #     if key != '_dereferenced' and not self._dereferenced:
+    #         self._dereferenced = True
+    #         pre_filled = self.__fill_data.force()
+    #         self._fill(pre_filled)
+    #         self._changed = set(pre_filled.keys())
+    #         del self.__fill_data
+    #     return super(BaseDocument, self).__getattribute__(key)
+
+    # def __setattr__(self, key, value):
+    #     self.__fill_data
+    #     return AbstractDocument.__setattr__(self, key, value)
+
     def _mark_as_changed(self, fname):
         self._changed.add(fname)
+
+    @classmethod
+    def entity_name(cls):
+        return cls.Meta.entity_name
 
     @classmethod
     def _iter_fields(cls):
@@ -309,9 +192,8 @@ class BaseDocument(AbstractDocument):
 
     @classmethod
     def schema(cls):
-        import connection
-        c = connection._default_connection
-        return c.schema_for(cls.Meta.entity_name)
+        c = connection.get_default_connection()
+        return c.schema_for(cls.entity_name())
 
     @classmethod
     def is_actual(cls):
@@ -327,28 +209,24 @@ class BaseDocument(AbstractDocument):
             fname = field.name
             if not field.has_default(instance=self) and fname in self._changed:
                 new_values[fname] = getattr(self, pname)
-        import connection
-        c = connection._default_connection
+        c = connection.get_default_connection()
         if self.id is None:
-            res = c._send(c._objects(self.Meta.entity_name), new_values)
+            res = c.objects(self.entity_name()).create(new_values)
         else:
-            res = c._update(c._object_id(self.Meta.entity_name, self.id), new_values)
+            res = c.objects(self.entity_name()).one(self.id).update(new_values)
         self._fill(res)
         self._changed = set()
 
     def delete(self):
-        import connection
-        c = connection._default_connection
-        c._remove(c._server(self.uri))
+        c = connection.get_default_connection()
+        c.resource(self.uri).delete()
         return True
 
     def _fill(self, raw_source):
+        # TODO: refactor this
         self._initialized = False
         self._unprotect = True
-        # TODO: refactor this
-        import connection
-        descr = connection._default_connection.schema_for(self.Meta.entity_name)
-        my_schema = descr['schema'] 
+        my_schema = self.schema()
 
         allowed_types = {
             'string': str,

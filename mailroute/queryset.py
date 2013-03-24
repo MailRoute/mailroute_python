@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from . import connection
 
 class DoesNotExist(Exception):
     pass
@@ -27,12 +28,13 @@ class QuerySet(object):
         self._cached = None
 
     @classmethod
+    def entity_name(cls):
+        return cls.Entity.entity_name()
+
+    @classmethod
     def get(cls, id):
-        # TODO: refactor this
-        import connection
-        c = connection._default_connection
-        o = cls.Entity()
-        o._fill(c._grab(c._object_id(cls.Entity.Meta.entity_name, id)))
+        c = connection.get_default_connection()
+        o = cls.Entity(initial=c.objects(cls.entity_name()).one(id).get())
         return o
 
     @classmethod
@@ -41,8 +43,9 @@ class QuerySet(object):
         o.save()
         return o
 
-    def bulk_create(self):
-        pass
+    def bulk_create(self, descriptions):
+        for initial in descriptions:
+            self.create(**descriptions)
 
     @classmethod
     def all(cls):
@@ -54,12 +57,11 @@ class QuerySet(object):
 
     @classmethod
     def delete(cls, resources):
-        import connection
-        c = connection._default_connection
+        c = connection.get_default_connection()
         for entity in resources:
             if isinstance(entity, (basestring, int)):
                 oid = str(entity)
-                c._remove(c._object_id(cls.Entity.Meta.entity_name, oid))
+                c.objects(cls.entity_name()).one(oid).delete()
             else:
                 entity.delete()
 
@@ -77,6 +79,7 @@ class QuerySet(object):
     def order_by(self, rule):
         f = dict(self._filters)
         f['order_by'] = rule
+        # TODO: check allowed fields for ordering
         return self.__class__(filters=f)
 
     def fetch(self):
@@ -115,9 +118,8 @@ class QuerySet(object):
 
     def __iter__(self):
         if self._cached is None:
-            import connection
-            c = connection._default_connection
-            self._cached = ans = c._grab(c._objects(self.__class__.Entity.Meta.entity_name), **self._filters)
+            c = connection.get_default_connection()
+            self._cached = ans = c.objects(self.entity_name()).get(**self._filters)
         else:
             ans = self._cached
 
