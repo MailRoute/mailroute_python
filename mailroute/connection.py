@@ -4,6 +4,9 @@ import requests
 import urllib
 import urlparse
 
+class NoConnectionProvided(Exception):
+    pass
+
 class UnsupportedVersion(Exception):
     pass
 
@@ -162,7 +165,10 @@ _connectors_by_version = {
 }
 
 def get_default_connection():
-    return _default_connection
+    if _default_connection is not None:
+        return _default_connection
+    else:
+        raise NoConnectionProvided
 
 def configure(username, apikey, server=None, version=1):
     global _default_connection
