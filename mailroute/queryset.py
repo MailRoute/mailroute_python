@@ -13,6 +13,12 @@ class InvalidQueryError(Exception):
     pass
 
 
+class InvalidFilter(InvalidQueryError):
+    pass
+
+class InvalidOrder(InvalidQueryError):
+    pass
+
 class OperationError(Exception):
     pass
 
@@ -43,9 +49,10 @@ class QuerySet(object):
         o.save()
         return o
 
-    def bulk_create(self, descriptions):
+    @classmethod
+    def bulk_create(cls, descriptions):
         for initial in descriptions:
-            self.create(**descriptions)
+            cls.create(**initial)
 
     @classmethod
     def all(cls):
