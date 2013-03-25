@@ -14,7 +14,35 @@ class TestQueries(unittest.TestCase):
         mailroute.configure(*self.ACCESS_USER, server='https://ci.mailroute.net')
 
     def test_limits(self):
-        False.should.be.ok
+        N = 15
+        prefix = uuid.uuid4().hex
+
+        for i in xrange(N):
+            new_name = '{1} Reseller A N{0}'.format(i, prefix)
+            new_one = mailroute.Reseller.create(name=new_name)
+
+        query = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).all()
+        len(query.fetch()).should.be.equal(N)
+        resellers = query.limit(0)
+        len(resellers).should.be.equal(0)
+        resellers = query.limit(1)
+        len(resellers).should.be.equal(1)
+        resellers = query.limit(N)
+        len(resellers).should.be.equal(N)
+        resellers = query.limit(2 * N)
+        len(resellers).should.be.equal(N)
+
+        resellers = query.limit(1).limit(2)
+        len(resellers).should.be.equal(1)
+        resellers = query.limit(1).offset(1)
+        len(resellers).should.be.equal(1)
+        resellers = query.limit(1).offset(N)
+        len(resellers).should.be.equal(0)
+        resellers = query.limit(1).offset(N - 1)
+        len(resellers).should.be.equal(1)
+
+        for reseller in query:
+            reseller.delete()
 
     def test_filter(self):
         False.should.be.ok
@@ -115,10 +143,47 @@ class TestQueries(unittest.TestCase):
             reseller.delete()
 
     def test_mass_create(self):
-        False.should.be.ok
+        N = 5
+        prefix = uuid.uuid4().hex
+
+        new_names = []
+        for i in xrange(N):
+            new_names.append('{1} Reseller N{0}'.format(i, prefix))
+
+        mailroute.Reseller.bulk_create([{'name': name} for name in new_names])
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
+        len(resellers).should.be.equal(N)
+        set(obj.name for obj in resellers.fetch()).should.be.equal(set(new_names))
 
     def test_sorting(self):
-        False.should.be.ok
+        N = 15
+        prefix = uuid.uuid4().hex
+
+        for i in xrange(N):
+            new_name = '{1} Reseller A N{0}'.format(i, prefix)
+            new_one = mailroute.Reseller.create(name=new_name)
+
+            new_name = '{1} Reseller B N{0}'.format(N - i, prefix)
+            new_one = mailroute.Reseller.create(name=new_name)
+
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).order_by('name')
+        list(resellers).should.be.equal(sorted(resellers, key=lambda obj: obj.name))
+
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).order_by('-name')
+        list(resellers).should.be.equal(sorted(resellers, key=lambda obj: obj.name, reverse=True))
+
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).order_by('-name', 'created_at')
+        list(resellers).should.be.equal(sorted(resellers, cmp=lambda obj1, obj2: \
+                                               -cmp(obj1.name, obj2.name) or cmp(obj1.created_at, obj2.created_at)))
+
+        mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)). \
+                                                        order_by.when.called_with('some_wrong_field'). \
+                                                        should.throw(mailroute.InvalidOrder)
+
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).order_by('todo__todo')
+
+        for reseller in resellers:
+            reseller.delete()
 
 
 if __name__ == '__main__':
