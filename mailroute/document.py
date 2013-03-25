@@ -89,6 +89,23 @@ class SmartField(object):
                 if instance._initialized:
                     instance._mark_as_changed(self.name)
 
+    def convert(self, instance, raw_value):
+        # TODO: refactor
+        my_schema = instance.schema()
+        allowed_types = {
+            'string': str,
+            'integer': int,
+            'float': float,
+            'boolean': lambda v: str(v).lower() == 'true',
+            'datetime': lambda v: dateutil.parser.parse(v),
+            'related': lambda cls_field, v: Reference(cls_field, v), # TODO: try to create necessary class
+        }
+        converter = allowed_types[my_schema['fields'][self.name]['type']]
+        if not inspect.isfunction(converter) or len(inspect.getargspec(converter).args) == 1:
+            return converter(raw_value)
+        else:
+            return converter(self, raw_value)
+
     def validate(self, instance, value):
         my_schema = instance.schema()
         allowed_types = {
@@ -228,23 +245,11 @@ class BaseDocument(AbstractDocument):
         self._unprotect = True
         my_schema = self.schema()
 
-        allowed_types = {
-            'string': str,
-            'integer': int,
-            'float': float,
-            'boolean': lambda v: str(v).lower() == 'true',
-            'datetime': lambda v: dateutil.parser.parse(v),
-            'related': lambda cls_field, v: Reference(cls_field, v), # TODO: try to create necessary class
-        }
         for pname, cls_field in self._iter_fields():
             fname = cls_field.name
-            converter = allowed_types[my_schema['fields'][fname]['type']]
             try:
                 value = raw_source[fname]
-                if not inspect.isfunction(converter) or len(inspect.getargspec(converter).args) == 1:
-                    setattr(self, pname, converter(value))
-                else:
-                    setattr(self, pname, converter(cls_field, value))
+                setattr(self, pname, cls_field.convert(self, value))
             except KeyError:
                 pass
         self._initialized = True
