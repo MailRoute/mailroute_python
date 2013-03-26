@@ -50,12 +50,10 @@ class Reference(object):
 
 class SmartField(object):
 
-    def __init__(self, name=None, required=False, default=None, to_collection=None, back_to=None):
+    def __init__(self, name=None, required=False, default=None):
         self.name = name
         self.required = required
         self.default = default
-        self._rel_col = to_collection
-        self._back_to = back_to
 
     def has_default(self, instance):
         my_schema = instance.schema()
@@ -66,18 +64,6 @@ class SmartField(object):
             return self
         value = instance._data.get(self.name)
         my_schema = instance.schema()
-        if my_schema['fields'][self.name].get('related_type') == 'to_many':
-            # TODO: refactor this copy&paste
-            mod = importlib.import_module(instance.__module__)
-            try:
-                mod = importlib.import_module('.'.join(self._ColClass.split('.')[:-1]))
-            except:
-                mod = mod
-            _ColClass = getattr(mod, self._rel_col.split('.')[-1])
-            for _, field in _ColClass.Entity._iter_fields():
-                if field._back_to == self.name:
-                    return _ColClass.filter(**{field.name: instance.id})
-            raise Exception, 'TODO'
 
         if isinstance(value, Reference):
             value = value.dereference(importlib.import_module(instance.__module__))
@@ -145,13 +131,40 @@ class SmartField(object):
             raise InvalidValue, (value, t)
 
 class ForeignField(SmartField):
-    pass
+    def __init__(self, name=None, required=False, to_collection=None, back_to=None):
+        self._rel_col = to_collection
+        self._back_to = back_to
+        super(ForeignField, self).__init__(name=name, required=required)
 
 class OneToOne(SmartField):
-    pass
+    def __init__(self, name=None, required=False, to_collection=None):
+        self._rel_col = to_collection
+        super(OneToOne, self).__init__(name=name, required=required)
 
 class OneToMany(SmartField):
-    pass
+    def __init__(self, name=None, required=False, to_collection=None):
+        self._rel_col = to_collection
+        super(OneToMany, self).__init__(name=name, required=required)
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        value = instance._data.get(self.name)
+        my_schema = instance.schema()
+        if my_schema['fields'][self.name].get('related_type') == 'to_many':
+            # TODO: refactor this copy&paste
+            mod = importlib.import_module(instance.__module__)
+            try:
+                mod = importlib.import_module('.'.join(self._ColClass.split('.')[:-1]))
+            except:
+                mod = mod
+            _ColClass = getattr(mod, self._rel_col.split('.')[-1])
+            for _, field in _ColClass.Entity._iter_fields():
+                if isinstance(field, ForeignField) and field._back_to == self.name:
+                    return _ColClass.filter(**{field.name: instance.id})
+            raise Exception, 'TODO'
+        else:
+            return super(OneToMany).__get__(instance, owner)
 
 class DocumentMetaclass(type):
 
@@ -235,11 +248,12 @@ class BaseDocument(AbstractDocument):
 
     @classmethod
     def is_actual(cls):
-        my_schema = cls.schema()['schema']
+        my_schema = cls.schema()
         ignored = getattr(cls.Meta, 'ignored', [])
         if set(my_schema['fields']).difference(ignored) == set(field.name for _, field in cls._iter_fields()).difference(ignored):
-            for _, field in cls._iter_fields:
-                if my_schema['fields'][field.name]['related_type'] == 'to_many' and not isinstance(field, OneToMany):
+            for _, field in cls._iter_fields():
+                # TODO: refactor this
+                if my_schema['fields'][field.name].get('related_type') == 'to_many' and not isinstance(field, OneToMany):
                     return False
             return True
         else:
