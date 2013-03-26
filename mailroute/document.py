@@ -50,11 +50,12 @@ class Reference(object):
 
 class SmartField(object):
 
-    def __init__(self, name=None, required=False, default=None, to_collection=None):
+    def __init__(self, name=None, required=False, default=None, to_collection=None, back_to=None):
         self.name = name
         self.required = required
         self.default = default
         self._rel_col = to_collection
+        self._back_to = back_to
 
     def has_default(self, instance):
         my_schema = instance.schema()
@@ -64,12 +65,25 @@ class SmartField(object):
         if instance is None:
             return self
         value = instance._data.get(self.name)
+        my_schema = instance.schema()
+        if my_schema['fields'][self.name].get('related_type') == 'to_many':
+            # TODO: refactor this copy&paste
+            mod = importlib.import_module(instance.__module__)
+            try:
+                mod = importlib.import_module('.'.join(self._ColClass.split('.')[:-1]))
+            except:
+                mod = mod
+            _ColClass = getattr(mod, self._rel_col.split('.')[-1])
+            for _, field in _ColClass.Entity._iter_fields():
+                if field._back_to == self.name:
+                    return _ColClass.filter(**{field.name: instance.id})
+            raise Exception, 'TODO'
+
         if isinstance(value, Reference):
             value = value.dereference(importlib.import_module(instance.__module__))
             
         if value is None:
             if self.default is None:
-                my_schema = instance.schema()
                 value = my_schema['fields'][self.name]['default']
             else:
                 value = self.default
@@ -83,6 +97,9 @@ class SmartField(object):
         if not instance._unprotect and my_schema['fields'][self.name]['readonly']:
             raise ReadOnlyError, self.name
         else:
+            if my_schema['fields'][self.name]['type'] == 'related' and my_schema['fields'][self.name]['related_type'] == 'to_many':
+                # ignore backward references collections
+                return
             self.validate(instance, value)
             if self.name not in instance._data or instance._data[self.name] != value:
                 instance._data[self.name] = value
@@ -120,17 +137,15 @@ class SmartField(object):
             if t != 'related':
                 raise UnknownType, t
             else:
-                pass
-                #ok = True
-                #if isinstance(value, Reference) and value.compatible(instance):
-                #    ok = True
-                #elif isinstance(value, BaseDocument): # TODO
-                #    ok = True
-                #if not ok:
-                #    raise ''
+                if isinstance(value, (Reference, BaseDocument)):
+                    return
+                else:
+                    raise InvalidValue, (value, t)
         if not isinstance(value, allowed_types[t]):
             raise InvalidValue, (value, t)
 
+class OneToMany(SmartField):
+    pass
 
 class DocumentMetaclass(type):
 
@@ -216,7 +231,13 @@ class BaseDocument(AbstractDocument):
     def is_actual(cls):
         my_schema = cls.schema()['schema']
         ignored = getattr(cls.Meta, 'ignored', [])
-        return set(my_schema['fields']).difference(ignored) == set(field.name for _, field in cls._iter_fields()).difference(ignored)
+        if set(my_schema['fields']).difference(ignored) == set(field.name for _, field in cls._iter_fields()).difference(ignored):
+            for _, field in cls._iter_fields:
+                if my_schema['fields'][field.name]['related_type'] == 'to_many' and not isinstance(field, OneToMany):
+                    return False
+            return True
+        else:
+            return False
 
     def save(self):
         if not self._changed:           # TODO: check children!!!!!!!
@@ -249,9 +270,11 @@ class BaseDocument(AbstractDocument):
             fname = cls_field.name
             try:
                 value = raw_source[fname]
-                setattr(self, pname, cls_field.convert(self, value))
             except KeyError:
-                pass
+                if not cls_field.has_default(instance=self):
+                    raise
+            else:
+                setattr(self, pname, cls_field.convert(self, value))
         self._initialized = True
         self._unprotect = False
         self._dereferenced = True

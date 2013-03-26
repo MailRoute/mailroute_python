@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from queryset import QuerySet
-from document import BaseDocument, AbstractDocument, BaseCreatableDocument, SmartField
+from document import BaseDocument, AbstractDocument, BaseCreatableDocument, SmartField, OneToMany
 
 class Branding(QuerySet):
     class BrandingEntity(BaseCreatableDocument):
@@ -27,12 +27,13 @@ class Reseller(QuerySet):
     class ResellerEntity(BaseCreatableDocument):
         class Meta:
             entity_name = 'reseller'
-            ignore = ['contacts', 'customers']
 
         name = SmartField(required=True)
         allow_customer_branding = SmartField()
         allow_branding = SmartField()
         branding_info = SmartField(to_collection='Branding')
+        contacts = OneToMany(to_collection='ContactReseller')
+        customers = OneToMany(to_collection='Customer')
     Entity = ResellerEntity
 
 class Admins(QuerySet):
@@ -70,7 +71,7 @@ class ContactCustomer(QuerySet):
         class Meta:
             entity_name = 'contact_customer'
 
-        customer = SmartField(to_collection='Customer')
+        customer = SmartField(to_collection='Customer', back_to='contacts')
 
     Entity = ContactCustomerEntity
 
@@ -79,7 +80,7 @@ class ContactDomain(QuerySet):
         class Meta:
             entity_name = 'contact_domain'
 
-        domain = SmartField(to_collection='Domain')
+        domain = SmartField(to_collection='Domain', back_to='contacts')
 
     Entity = ContactDomainEntity
 
@@ -97,7 +98,7 @@ class ContactReseller(QuerySet):
         class Meta:
             entity_name = 'contact_reseller'
 
-        reseller = SmartField(to_collection='Reseller')
+        reseller = SmartField(to_collection='Reseller', back_to='contacts')
 
     Entity = ContactResellerEntity
 
@@ -112,7 +113,9 @@ class Customer(QuerySet):
         branding_info = SmartField(to_collection='Branding')
         is_full_user_list = SmartField()
         reported_user_count = SmartField()
-        reseller = SmartField(to_collection='Reseller')
+        reseller = SmartField(to_collection='Reseller', back_to='customers')
+        contacts = OneToMany(to_collection='ContactCustomer')
+        domains = OneToMany(to_collection='Domain')
 
     Entity = CustomerEntity
 
@@ -123,17 +126,17 @@ class Domain(QuerySet):
 
         active = SmartField()
         bounce_unlisted = SmartField()
-        contacts = SmartField(to_collection='ContactDomain')
-        customer = SmartField(to_collection='Customer')
+        contacts = OneToMany(to_collection='ContactDomain')
+        customer = SmartField(to_collection='Customer', back_to='domains')
         deliveryport = SmartField()
-        domain_aliases = SmartField(to_collection='DomainAlias')
-        email_accounts = SmartField(to_collection='EmailAccount')
+        domain_aliases = OneToMany(to_collection='DomainAlias')
+        email_accounts = OneToMany(to_collection='EmailAccount')
         hold_email = SmartField()
         name = SmartField()
-        mail_servers = SmartField(to_collection='MailServer')
+        mail_servers = OneToMany(to_collection='MailServer')
         notification_task = SmartField(to_collection='NotificationDomainTask')
         outbound_enabled = SmartField()
-        outbound_servers = SmartField(to_collection='OutboundServer')
+        outbound_servers = OneToMany(to_collection='OutboundServer')
         policy = SmartField(to_collection='PolicyDomain')
         outbound_enabled = SmartField()
 
@@ -145,7 +148,7 @@ class DomainAlias(QuerySet):
             entity_name = 'domain_alias'
 
         active = SmartField()
-        domain = SmartField(to_collection='Domain')
+        domain = SmartField(to_collection='Domain', back_to='domain_aliases')
         name = SmartField()
 
     Entity = DomainAliasEntity
@@ -170,9 +173,9 @@ class EmailAccount(QuerySet):
         confirm_password = SmartField()
         contact = SmartField(to_collection='Contact')
         create_opt = SmartField()
-        domain = SmartField(to_collection='Domain')
+        domain = SmartField(to_collection='Domain', back_to='email_accounts')
         localpart = SmartField()
-        localpart_aliases = SmartField(to_collection='LocalPartAlias')
+        localpart_aliases = OneToMany(to_collection='LocalPartAlias')
         notification_task = SmartField(to_collection='NotificationAccountTask')
         password = SmartField()
         policy = SmartField(to_collection='PolicyUser')
@@ -187,7 +190,7 @@ class LocalPartAlias(QuerySet):
             entity_name = 'localpart_alias'
 
         domain = SmartField(to_collection='Domain')
-        email_account = SmartField(to_collection='EmailAccount')
+        email_account = SmartField(to_collection='EmailAccount', back_to='localpart_aliases')
         localpart = SmartField()
         type = SmartField()
 
@@ -198,7 +201,7 @@ class MailServer(QuerySet):
         class Meta:
             entity_name = 'mail_server'
 
-        domain = SmartField(to_collection='Domain')
+        domain = SmartField(to_collection='Domain', back_to='mail_servers')
         priority = SmartField()
         sasl_login = SmartField()
         sasl_password = SmartField()
@@ -234,7 +237,7 @@ class OutboundServer(QuerySet):
         class Meta:
             entity_name = 'outbound_server'
 
-        domain = SmartField(to_collection='Domain')
+        domain = SmartField(to_collection='Domain', back_to='outbound_servers')
         server = SmartField()
 
     Entity = OutboundServerEntity
@@ -291,4 +294,7 @@ class PolicyUser(QuerySet):
 
     Entity = PolicyUserEntity
 
-#__all__ = []
+__all__ = ['Branding', 'Reseller', 'Admins', 'ContactCustomer', 'ContactDomain', 'ContactEmailAccount',
+           'ContactReseller', 'Customer', 'Domain', 'DomainAlias', 'DomainWithAlias', 'EmailAccount',
+           'LocalPartAlias', 'MailServer', 'NotificationAccountTask', 'NotificationDomainTask',
+           'OutboundServer', 'PolicyDomain', 'PolicyUser']
