@@ -144,6 +144,12 @@ class SmartField(object):
         if not isinstance(value, allowed_types[t]):
             raise InvalidValue, (value, t)
 
+class ForeignField(SmartField):
+    pass
+
+class OneToOne(SmartField):
+    pass
+
 class OneToMany(SmartField):
     pass
 

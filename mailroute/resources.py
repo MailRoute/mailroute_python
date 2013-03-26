@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from queryset import QuerySet
-from document import BaseDocument, AbstractDocument, BaseCreatableDocument, SmartField, OneToMany
+from document import BaseDocument, AbstractDocument, BaseCreatableDocument, SmartField, \
+     OneToMany, OneToOne, ForeignField
 
 class Branding(QuerySet):
     class BrandingEntity(BaseCreatableDocument):
@@ -15,7 +16,7 @@ class Branding(QuerySet):
         favicon = SmartField()
         highlight_color = SmartField()
         logo = SmartField()
-        reseller = SmartField(to_collection='Reseller')
+        reseller = OneToOne(to_collection='Reseller')
         service_name = SmartField()
         ssl_cert_passphrase = SmartField()
         subdomain = SmartField()
@@ -31,7 +32,7 @@ class Reseller(QuerySet):
         name = SmartField(required=True)
         allow_customer_branding = SmartField()
         allow_branding = SmartField()
-        branding_info = SmartField(to_collection='Branding')
+        branding_info = OneToOne(to_collection='Branding')
         contacts = OneToMany(to_collection='ContactReseller')
         customers = OneToMany(to_collection='Customer')
     Entity = ResellerEntity
@@ -71,7 +72,7 @@ class ContactCustomer(QuerySet):
         class Meta:
             entity_name = 'contact_customer'
 
-        customer = SmartField(to_collection='Customer', back_to='contacts')
+        customer = ForeignField(to_collection='Customer', back_to='contacts')
 
     Entity = ContactCustomerEntity
 
@@ -80,7 +81,7 @@ class ContactDomain(QuerySet):
         class Meta:
             entity_name = 'contact_domain'
 
-        domain = SmartField(to_collection='Domain', back_to='contacts')
+        domain = ForeignField(to_collection='Domain', back_to='contacts')
 
     Entity = ContactDomainEntity
 
@@ -89,7 +90,7 @@ class ContactEmailAccount(QuerySet):
         class Meta:
             entity_name = 'contact_email_account'
 
-        email_account = SmartField(to_collection='EmailAccount')
+        email_account = OneToOne(to_collection='EmailAccount')
 
     Entity = ContactEmailAccountEntity
 
@@ -98,7 +99,7 @@ class ContactReseller(QuerySet):
         class Meta:
             entity_name = 'contact_reseller'
 
-        reseller = SmartField(to_collection='Reseller', back_to='contacts')
+        reseller = ForeignField(to_collection='Reseller', back_to='contacts')
 
     Entity = ContactResellerEntity
 
@@ -106,14 +107,13 @@ class Customer(QuerySet):
     class CustomerEntity(BaseCreatableDocument):
         class Meta:
             entity_name = 'customer'
-            ignored = ['contacts', 'domains']
 
         name = SmartField(required=True)
         allow_branding = SmartField()
-        branding_info = SmartField(to_collection='Branding')
+        branding_info = OneToOne(to_collection='Branding')
         is_full_user_list = SmartField()
         reported_user_count = SmartField()
-        reseller = SmartField(to_collection='Reseller', back_to='customers')
+        reseller = ForeignField(to_collection='Reseller', back_to='customers')
         contacts = OneToMany(to_collection='ContactCustomer')
         domains = OneToMany(to_collection='Domain')
 
@@ -127,17 +127,17 @@ class Domain(QuerySet):
         active = SmartField()
         bounce_unlisted = SmartField()
         contacts = OneToMany(to_collection='ContactDomain')
-        customer = SmartField(to_collection='Customer', back_to='domains')
+        customer = ForeignField(to_collection='Customer', back_to='domains')
         deliveryport = SmartField()
         domain_aliases = OneToMany(to_collection='DomainAlias')
         email_accounts = OneToMany(to_collection='EmailAccount')
         hold_email = SmartField()
         name = SmartField()
         mail_servers = OneToMany(to_collection='MailServer')
-        notification_task = SmartField(to_collection='NotificationDomainTask')
+        notification_task = OneToOne(to_collection='NotificationDomainTask')
         outbound_enabled = SmartField()
         outbound_servers = OneToMany(to_collection='OutboundServer')
-        policy = SmartField(to_collection='PolicyDomain')
+        policy = OneToOne(to_collection='PolicyDomain')
         outbound_enabled = SmartField()
 
     Entity = DomainEntity
@@ -148,7 +148,7 @@ class DomainAlias(QuerySet):
             entity_name = 'domain_alias'
 
         active = SmartField()
-        domain = SmartField(to_collection='Domain', back_to='domain_aliases')
+        domain = ForeignField(to_collection='Domain', back_to='domain_aliases')
         name = SmartField()
 
     Entity = DomainAliasEntity
@@ -158,7 +158,7 @@ class DomainWithAlias(QuerySet):
         class Meta:
             entity_name = 'domain_with_alias'
 
-        domain = SmartField(to_collection='Domain')
+        domain = OneToOne(to_collection='Domain')
         name = SmartField()
         type = SmartField()
 
@@ -171,14 +171,14 @@ class EmailAccount(QuerySet):
 
         change_pwd = SmartField()
         confirm_password = SmartField()
-        contact = SmartField(to_collection='Contact')
+        contact = OneToOne(to_collection='Contact')
         create_opt = SmartField()
-        domain = SmartField(to_collection='Domain', back_to='email_accounts')
+        domain = ForeignField(to_collection='Domain', back_to='email_accounts')
         localpart = SmartField()
         localpart_aliases = OneToMany(to_collection='LocalPartAlias')
-        notification_task = SmartField(to_collection='NotificationAccountTask')
+        notification_task = OneToOne(to_collection='NotificationAccountTask')
         password = SmartField()
-        policy = SmartField(to_collection='PolicyUser')
+        policy = OneToOne(to_collection='PolicyUser')
         priority = SmartField()
         send_welcome = SmartField()
 
@@ -189,8 +189,8 @@ class LocalPartAlias(QuerySet):
         class Meta:
             entity_name = 'localpart_alias'
 
-        domain = SmartField(to_collection='Domain')
-        email_account = SmartField(to_collection='EmailAccount', back_to='localpart_aliases')
+        domain = OneToOne(to_collection='Domain')
+        email_account = ForeignField(to_collection='EmailAccount', back_to='localpart_aliases')
         localpart = SmartField()
         type = SmartField()
 
@@ -201,7 +201,7 @@ class MailServer(QuerySet):
         class Meta:
             entity_name = 'mail_server'
 
-        domain = SmartField(to_collection='Domain', back_to='mail_servers')
+        domain = ForeignField(to_collection='Domain', back_to='mail_servers')
         priority = SmartField()
         sasl_login = SmartField()
         sasl_password = SmartField()
@@ -215,7 +215,7 @@ class NotificationAccountTask(QuerySet):
         class Meta:
             entity_name = 'notification_account_task'
 
-        email_account = SmartField(to_collection='EmailAccount')
+        email_account = OneToOne(to_collection='EmailAccount')
         enabled = SmartField()
         priority = SmartField()
 
@@ -226,7 +226,7 @@ class NotificationDomainTask(QuerySet):
         class Meta:
             entity_name = 'notification_domain_task'
 
-        domain = SmartField(to_collection='Domain')
+        domain = OneToOne(to_collection='Domain')
         enabled = SmartField()
         priority = SmartField()
 
@@ -237,7 +237,7 @@ class OutboundServer(QuerySet):
         class Meta:
             entity_name = 'outbound_server'
 
-        domain = SmartField(to_collection='Domain', back_to='outbound_servers')
+        domain = ForeignField(to_collection='Domain', back_to='outbound_servers')
         server = SmartField()
 
     Entity = OutboundServerEntity
@@ -281,7 +281,7 @@ class PolicyDomain(QuerySet):
         class Meta:
             entity_name = 'policy_domain'
 
-        domain = SmartField(to_collection='Domain')
+        domain = OneToOne(to_collection='Domain')
 
     Entity = PolicyDomainEntity
 
@@ -290,7 +290,7 @@ class PolicyUser(QuerySet):
         class Meta:
             entity_name = 'policy_user'
 
-        email_account = SmartField(to_collection='EmailAccount')
+        email_account = OneToOne(to_collection='EmailAccount')
 
     Entity = PolicyUserEntity
 
