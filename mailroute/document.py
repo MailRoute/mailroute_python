@@ -44,7 +44,26 @@ class Reference(object):
                 except:
                     mod = instance_module
                 _ColClass = getattr(mod, self._ColClass.split('.')[-1])
-            b = _ColClass.Entity(pre_filled=LazyLink(self._path))
+
+            class LazyEntity(_ColClass.Entity):
+                pass
+
+            b = LazyEntity(pre_filled=LazyLink(self._path))
+
+            def __getattribute__(self, key):
+                self.__class__ = _ColClass.Entity
+                return self.__getattribute__(key)
+
+            def __setattr__(self, key, value):
+                if key == '__class__':
+                    return super(LazyEntity, self).__setattr__(key, value)
+                else:
+                    return self.__setattr__(key, value)
+
+            LazyEntity.__name__ = _ColClass.Entity.__name__
+            LazyEntity.__getattribute__ = __getattribute__
+            LazyEntity.__setattr__ = __setattr__
+
             self._de = b
             return b
 
@@ -212,19 +231,6 @@ class BaseDocument(AbstractDocument):
             self._changed = set()
         else:
             self._changed = set()
-
-    # def __getattribute__(self, key):
-    #     if key != '_dereferenced' and not self._dereferenced:
-    #         self._dereferenced = True
-    #         pre_filled = self.__fill_data.force()
-    #         self._fill(pre_filled)
-    #         self._changed = set(pre_filled.keys())
-    #         del self.__fill_data
-    #     return super(BaseDocument, self).__getattribute__(key)
-
-    # def __setattr__(self, key, value):
-    #     self.__fill_data
-    #     return AbstractDocument.__setattr__(self, key, value)
 
     def _mark_as_changed(self, fname):
         self._changed.add(fname)
