@@ -11,15 +11,19 @@ class InvalidValue(Exception):
     pass
 class UnknownType(Exception):
     pass
+class NotActualSchema(Exception):
+    pass
 
 class LazyLink(object):
     def __init__(self, link):
         self._link = link
+        self._descr = None
 
     def force(self):
-        # TODO: refactor this!!!!
-        c = connection.get_default_connection()
-        descr = c.resource(self._link).get()
+        if self._descr is None:
+            c = connection.get_default_connection()
+            self._descr = c.resource(self._link).get()
+        return self._descr
 
     def __ne__(self, another):
         return self._link != another._link
@@ -47,11 +51,13 @@ class Reference(object):
 
             class LazyEntity(_ColClass.Entity):
                 pass
+            LazyEntity.__name__ = _ColClass.Entity.__name__
 
             b = LazyEntity(pre_filled=LazyLink(self._path))
 
             def __getattribute__(self, key):
                 self.__class__ = _ColClass.Entity
+                self._force()
                 return self.__getattribute__(key)
 
             def __setattr__(self, key, value):
@@ -60,7 +66,6 @@ class Reference(object):
                 else:
                     return self.__setattr__(key, value)
 
-            LazyEntity.__name__ = _ColClass.Entity.__name__
             LazyEntity.__getattribute__ = __getattribute__
             LazyEntity.__setattr__ = __setattr__
 
@@ -89,6 +94,9 @@ class SmartField(object):
             
         if value is None:
             if self.default is None:
+                # TODO
+                if my_schema['fields'][self.name].get('related_type') == 'to_one':
+                    return None
                 value = my_schema['fields'][self.name]['default']
             else:
                 value = self.default
@@ -114,13 +122,20 @@ class SmartField(object):
     def convert(self, instance, raw_value):
         # TODO: refactor
         my_schema = instance.schema()
+        def ref(cls_field, v):
+            if v is None:
+                return None
+            if isinstance(cls_field, (ForeignField, OneToOne)):
+                return Reference(cls_field, v)
+            else:
+                raise InvalidValue, (self.name, raw_value)
         allowed_types = {
             'string': str,
             'integer': int,
             'float': float,
             'boolean': lambda v: str(v).lower() == 'true',
             'datetime': lambda v: dateutil.parser.parse(v),
-            'related': lambda cls_field, v: Reference(cls_field, v), # TODO: try to create necessary class
+            'related': ref,
         }
         converter = allowed_types[my_schema['fields'][self.name]['type']]
         if not inspect.isfunction(converter) or len(inspect.getargspec(converter).args) == 1:
@@ -142,7 +157,7 @@ class SmartField(object):
             if t != 'related':
                 raise UnknownType, t
             else:
-                if isinstance(value, (Reference, BaseDocument)):
+                if isinstance(value, (Reference, BaseDocument)) or value is None:
                     return
                 else:
                     raise InvalidValue, (value, t)
@@ -164,6 +179,9 @@ class OneToMany(SmartField):
     def __init__(self, name=None, required=False, to_collection=None):
         self._rel_col = to_collection
         super(OneToMany, self).__init__(name=name, required=required)
+
+    def convert(self, instance, raw_value):
+        return None
 
     def __get__(self, instance, owner):
         if instance is None:
@@ -217,6 +235,11 @@ class BaseDocument(AbstractDocument):
     id = SmartField(default=lambda: None)
     uri = SmartField(name='resource_uri', default=lambda: None)
 
+    def __new__(cls, *args, **kwargs):
+        if not cls.is_actual():
+            raise NotActualSchema, cls
+        return AbstractDocument.__new__(cls, *args, **kwargs)
+
     def __init__(self, pre_filled=None):
         self._data = {}
         self._initialized = True
@@ -231,6 +254,11 @@ class BaseDocument(AbstractDocument):
             self._changed = set()
         else:
             self._changed = set()
+
+    def _force(self):
+        if not self._dereferenced:
+            self._fill(self.__fill_data.force())
+            del self.__fill_data
 
     def _mark_as_changed(self, fname):
         self._changed.add(fname)
@@ -260,6 +288,8 @@ class BaseDocument(AbstractDocument):
             for _, field in cls._iter_fields():
                 # TODO: refactor this
                 if my_schema['fields'][field.name].get('related_type') == 'to_many' and not isinstance(field, OneToMany):
+                    return False
+                if my_schema['fields'][field.name].get('related_type') == 'to_one' and not isinstance(field, (OneToOne, ForeignField)):
                     return False
             return True
         else:

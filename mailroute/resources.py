@@ -9,7 +9,7 @@ class Branding(QuerySet):
             entity_name = 'brandinginfo'
 
         color = SmartField()
-        customer = SmartField()
+        customer = OneToOne(to_collection='Customer')
         domain = SmartField()
         email_from = SmartField()
         enabled = SmartField()
