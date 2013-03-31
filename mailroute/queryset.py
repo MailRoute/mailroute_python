@@ -63,6 +63,10 @@ class QuerySet(object):
         return cls(filters=options)
 
     @classmethod
+    def search(cls, pattern):
+        return cls(filters=dict(q=pattern))
+
+    @classmethod
     def delete(cls, resources):
         c = connection.get_default_connection()
         for entity in resources:
