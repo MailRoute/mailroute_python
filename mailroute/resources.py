@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from queryset import QuerySet
-from document import BaseDocument, AbstractDocument, BaseCreatableDocument, SmartField, \
-     OneToMany, OneToOne, ForeignField
+from document import BaseDocument, AbstractDocument, BaseCreatableDocument
+from fields import SmartField, OneToMany, OneToOne, ForeignField
 
 class Branding(QuerySet):
     class BrandingEntity(BaseCreatableDocument):
