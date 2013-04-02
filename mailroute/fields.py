@@ -30,6 +30,16 @@ class LazyLink(object):
     def __eq__(self, another):
         return self._link == another._link
 
+def _resolve_class(class_or_name, instance_module):
+    if isinstance(class_or_name, basestring):
+        try:
+            mod = importlib.import_module('.'.join(class_or_name.split('.')[:-1]))
+        except:
+            mod = instance_module
+        return getattr(mod, class_or_name.split('.')[-1])
+    else:
+        return class_or_name
+
 class Reference(object):
     def __init__(self, rel_col, link):
         self._ColClass = rel_col
@@ -40,12 +50,7 @@ class Reference(object):
         if self._de:
             return self._de
         else:
-            if isinstance(self._ColClass, basestring):
-                try:
-                    mod = importlib.import_module('.'.join(self._ColClass.split('.')[:-1]))
-                except:
-                    mod = instance_module
-                _ColClass = getattr(mod, self._ColClass.split('.')[-1])
+            _ColClass = _resolve_class(self._ColClass, instance_module)
 
             class LazyEntity(_ColClass.Entity):
                 pass
@@ -197,11 +202,7 @@ class OneToMany(SmartField):
         if my_schema['fields'][self.name].get('related_type') == 'to_many':
             # TODO: refactor this copy&paste
             mod = importlib.import_module(instance.__module__)
-            try:
-                mod = importlib.import_module('.'.join(self._ColClass.split('.')[:-1]))
-            except:
-                mod = mod
-            _ColClass = getattr(mod, self._rel_col.split('.')[-1])
+            _ColClass = _resolve_class(self._ColClass, mod)
             for _, field in _ColClass.Entity._iter_fields():
                 if isinstance(field, ForeignField) and field._back_to == self.name:
                     return _ColClass.filter(**{field.name: instance.id})
