@@ -46,7 +46,7 @@ class Reference(object):
         self._path = link
         self._de = None
 
-    def dereference(self, instance_module):
+    def dereference(self, for_field_name, instance_module):
         if self._de:
             return self._de
         else:
@@ -60,7 +60,7 @@ class Reference(object):
 
             def __getattribute__(self, key):
                 self.__class__ = _ColClass.Entity
-                self._force()
+                self._force(for_field_name)
                 return self.__getattribute__(key)
 
             def __setattr__(self, key, value):
@@ -145,7 +145,7 @@ class SmartField(object):
         my_schema = instance.schema()
 
         if isinstance(value, Reference):
-            value = value.dereference(importlib.import_module(instance.__module__))
+            value = value.dereference(self.name, importlib.import_module(instance.__module__))
             
         if value is None:
             if self.default is None:
@@ -165,8 +165,7 @@ class SmartField(object):
             self.validate(instance, value)
             if self.name not in instance._data or instance._data[self.name] != value:
                 instance._data[self.name] = value
-                if instance._initialized:
-                    instance._mark_as_changed(self.name)
+                instance._mark_as_changed(self.name)
 
     def convert(self, instance, raw_value):
         my_schema = instance.schema()
@@ -206,9 +205,11 @@ class SingleRelation(SmartField):
         if t != 'related':
             raise IncompatibleType, t
         rel_type = my_schema['fields'][self.name]['related_type']
-        # TODO: check not for BaseDocument, but for _rel_col compatibility
-        BaseDocument = instance.__class__ # TODO: dirty trick
-        if isinstance(value, (Reference, BaseDocument)) or value is None and rel_type == 'to_one':
+        mod = importlib.import_module(instance.__module__)
+        _ColClass = _resolve_class(self._rel_col, mod)
+        if isinstance(value, (Reference, _ColClass.Entity)):
+            return
+        elif value is None:
             return
         else:
             raise InvalidValue, (value, t)
@@ -244,17 +245,14 @@ class OneToMany(SmartField):
             return self
         value = instance._data.get(self.name)
         my_schema = instance.schema()
-        # TODO: strange check for ignored (and for to_many, because schema was valid)
-        if self.name in ignored or my_schema['fields'][self.name].get('related_type') == 'to_many':
-            # TODO: refactor this copy&paste
-            mod = importlib.import_module(instance.__module__)
-            _ColClass = _resolve_class(self._ColClass, mod)
-            for _, field in _ColClass.Entity._iter_fields():
-                if isinstance(field, ForeignField) and field._back_to == self.name:
-                    return _ColClass.filter(**{field.name: instance.id})
-            raise Exception, 'TODO'
-        else:
-            return super(OneToMany).__get__(instance, owner)
+        # TODO: refactor this copy&paste
+        mod = importlib.import_module(instance.__module__)
+        _ColClass = _resolve_class(self._rel_col, mod)
+        # TODO: improve performance
+        for _, field in _ColClass.Entity._iter_fields():
+            if isinstance(field, ForeignField) and field._back_to == self.name:
+                return _ColClass.filter(**{field.name: instance.id})
+        raise Exception, 'TODO: Backward field is not found'
 
     def __set__(self, instance, value):
         # ignore backward references collections

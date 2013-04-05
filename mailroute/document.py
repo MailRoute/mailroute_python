@@ -65,26 +65,29 @@ class BaseDocument(AbstractDocument):
 
     def __init__(self, pre_filled=None):
         self._data = {}
-        self._initialized = True
         self._unprotect = False
         self._dereferenced = True
+        self._initialized = False
+        self._changed = set()
+        self._forced = set()
         if pre_filled and isinstance(pre_filled, dict):
             self._fill(pre_filled)
-            self._changed = set(pre_filled.keys())
         elif isinstance(pre_filled, LazyLink):
+            self._initialized = False
             self._dereferenced = False
             self.__fill_data = pre_filled
-            self._changed = set()
         else:
-            self._changed = set()
+            self._initialized = True
 
-    def _force(self):
+    def _force(self, for_fname):
         if not self._dereferenced:
             self._fill(self.__fill_data.force())
             del self.__fill_data
+            self._forced.add(for_fname)
 
     def _mark_as_changed(self, fname):
-        self._changed.add(fname)
+        if self._initialized:
+            self._changed.add(fname)
 
     @classmethod
     def entity_name(cls):
@@ -118,20 +121,28 @@ class BaseDocument(AbstractDocument):
             return False
 
     def save(self):
-        if not self._changed:           # TODO: check children!!!!!!!
+        for pname, field in self._iter_fields():
+            nested = getattr(self, pname)
+            if field.name in self._forced and isinstance(nested, BaseDocument):
+                print 'nested', nested, pname
+                nested.save()
+        if not self._changed:
             return
         new_values = {}
         for pname, field in self._iter_fields():
             fname = field.name
-            if not field.has_default(instance=self) and fname in self._changed:
+            if fname in self._changed:
                 new_values[fname] = getattr(self, pname)
         c = connection.get_default_connection()
         if self.id is None:
             res = c.objects(self.entity_name()).create(new_values)
         else:
             res = c.objects(self.entity_name()).one(self.id).update(new_values)
-        self._fill(res)
+        # rework this functionality
+        self._initialized = False
         self._changed = set()
+        self._forced = set()
+        self._fill(res)
 
     def delete(self):
         c = connection.get_default_connection()
@@ -140,7 +151,6 @@ class BaseDocument(AbstractDocument):
 
     def _fill(self, raw_source):
         # TODO: refactor this
-        self._initialized = False
         self._unprotect = True
         my_schema = self.schema()
 
