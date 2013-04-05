@@ -45,7 +45,10 @@ class QuerySet(object):
 
     @classmethod
     def create(cls, **initial):
-        o = cls.Entity(pre_filled=initial)
+        o = cls.Entity()
+        # because we really want to mark fields to be changed in this case
+        for pname, value in initial.iteritems():
+            setattr(o, pname, value)
         o.save()
         return o
 
