@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import datetime
 import dateutil.parser
-from fields import SmartField, OneToMany, OneToOne, ForeignField
+from fields import LazyLink, SmartField, OneToMany, OneToOne, ForeignField
 from . import connection
 
 class NotActualSchema(Exception):
@@ -29,6 +29,25 @@ class DocumentMetaclass(type):
 
         # Create the new_class
         new_class = super_new(cls, name, bases, attrs)
+
+        if getattr(new_class, 'Meta', None) is not None:
+            # handle just only real classes
+            for _, field in new_class._iter_fields():
+                if isinstance(field, OneToMany):
+                    try:
+                        new_class.Meta.ignored
+                    except:
+                        new_class.Meta.ignored = []
+                    new_class.Meta.ignored.append(field.name)
+            try:
+                ignored = set(new_class.Meta.ignored)
+            except:
+                # there are no ignored field, nothing to do here
+                pass
+            else:
+                for _, field in new_class._iter_fields():
+                    if field.name in ignored:
+                        field.mark_as_ignored()
         return new_class
 
 class AbstractDocument(object):
@@ -72,12 +91,14 @@ class BaseDocument(AbstractDocument):
         return cls.Meta.entity_name
 
     @classmethod
-    def _iter_fields(cls):
+    def _iter_fields(cls, show_ignored=True):
         for basis in cls.__mro__:
             if not issubclass(basis, AbstractDocument):
                 continue
             for pname in basis._field_names:
-                yield pname, getattr(cls, pname)
+                f_object = getattr(cls, pname)
+                if show_ignored or not f_object.ignored:
+                    yield pname, f_object
 
     @classmethod
     def schema(cls):
@@ -88,12 +109,9 @@ class BaseDocument(AbstractDocument):
     def is_actual(cls):
         my_schema = cls.schema()
         ignored = getattr(cls.Meta, 'ignored', [])
-        if set(my_schema['fields']).difference(ignored) == set(field.name for _, field in cls._iter_fields()).difference(ignored):
+        if set(my_schema['fields']).difference(ignored) == set(field.name for _, field in cls._iter_fields(show_ignored=False)):
             for _, field in cls._iter_fields():
-                # TODO: refactor this
-                if my_schema['fields'][field.name].get('related_type') == 'to_many' and not isinstance(field, OneToMany):
-                    return False
-                if my_schema['fields'][field.name].get('related_type') == 'to_one' and not isinstance(field, (OneToOne, ForeignField)):
+                if not field.is_actual_for(my_schema):
                     return False
             return True
         else:
