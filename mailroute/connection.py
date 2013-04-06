@@ -43,12 +43,20 @@ class CreateError(AnswerError):
 class UpdateError(AnswerError):
     pass
 
+class DocJSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if hasattr(o, '__serialize__'):
+            converter = getattr(o, '__serialize__')
+            return converter()
+        return super(DocJSONEncoder, self).default(o)
+
 class Resource(object):
 
     def __init__(self, path, final=False, auth=None):
         self.path = path
         self._auth = auth if auth is not None else {}
         self._final = final
+        self._dumper = DocJSONEncoder()
 
     def _handle_error(self, error, Error4xx):
         res = error.response
@@ -77,7 +85,7 @@ class Resource(object):
 
     def create(self, data):
         try:
-            res = requests.post(self.path, data=json.dumps(data), headers=self._auth)
+            res = requests.post(self.path, data=self._dumper.encode(data), headers=self._auth)
             res.raise_for_status()
             return res.json()
         except requests.exceptions.HTTPError, e:
@@ -93,7 +101,7 @@ class Resource(object):
 
     def update(self, data):
         try:
-            res = requests.put(self.path, data=json.dumps(data), headers=self._auth)
+            res = requests.put(self.path, data=self._dumper.encode(data), headers=self._auth)
             res.raise_for_status()
             return res.json()
         except requests.exceptions.HTTPError, e:
