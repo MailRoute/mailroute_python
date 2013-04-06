@@ -41,12 +41,13 @@ def _resolve_class(class_or_name, instance_module):
         return class_or_name
 
 class Reference(object):
-    def __init__(self, rel_col, link):
+    def __init__(self, forcing_callback, rel_col, link):
+        self._f_callback = forcing_callback
         self._ColClass = rel_col
         self._path = link
         self._de = None
 
-    def dereference(self, for_field_name, instance_module):
+    def dereference(self, instance_module):
         if self._de:
             return self._de
         else:
@@ -58,9 +59,10 @@ class Reference(object):
 
             b = LazyEntity(pre_filled=LazyLink(self._path))
 
+            ref_self = self
             def __getattribute__(self, key):
                 self.__class__ = _ColClass.Entity
-                self._force(for_field_name)
+                ref_self._f_callback()
                 return self.__getattribute__(key)
 
             def __setattr__(self, key, value):
@@ -145,7 +147,8 @@ class SmartField(object):
         my_schema = instance.schema()
 
         if isinstance(value, Reference):
-            value = value.dereference(self.name, importlib.import_module(instance.__module__))
+            # TODO: remove module trick
+            value = value.dereference(importlib.import_module(instance.__module__))
             
         if value is None:
             if self.default is None:
@@ -188,6 +191,11 @@ class SmartField(object):
 
 class SingleRelation(SmartField):
 
+    class Transform(object):
+
+        def is_allowed(self, type_name):
+            return type_name == 'related'
+
     def convert(self, instance, raw_value):
         my_schema = instance.schema()
         t = my_schema['fields'][self.name]['type']
@@ -195,7 +203,7 @@ class SingleRelation(SmartField):
         if t == 'related' and rel_type == 'to_one':
             if raw_value is None:
                 return None
-            return Reference(self._rel_col, raw_value)
+            return Reference(lambda: instance._force(self.name), self._rel_col, raw_value)
         else:
             raise IncompatibleType, t
 

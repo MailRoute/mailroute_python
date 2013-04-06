@@ -1,22 +1,35 @@
 # -*- coding: utf-8 -*-
 import datetime
 import dateutil.parser
+from contextlib import contextmanager
 from fields import LazyLink, SmartField, OneToMany, OneToOne, ForeignField
 from . import connection
 
 class NotActualSchema(Exception):
     pass
 
+class InitializationError(Exception):
+    pass
+
 class DocumentMetaclass(type):
 
     def __new__(cls, name, bases, attrs):
-        # If a base class just call super
+        # if a base class just call super
         metaclass = attrs.get('my_metaclass')
         super_new = super(DocumentMetaclass, cls).__new__
 
         if metaclass and issubclass(metaclass, DocumentMetaclass):
             return super_new(cls, name, bases, attrs)
 
+        attrs['_field_names'] = cls.sieved_fields(attrs)
+
+        # create the new_class
+        new_class = super_new(cls, name, bases, attrs)
+        cls.update_ignored(new_class)
+        return new_class
+
+    @classmethod
+    def sieved_fields(cls, attrs):
         _fields = []
         for fname, field in attrs.iteritems():
             if not isinstance(field, SmartField):
@@ -24,12 +37,10 @@ class DocumentMetaclass(type):
             if field.name is None:
                 field.name = fname
             _fields.append(fname)
+        return _fields
 
-        attrs['_field_names'] = _fields
-
-        # Create the new_class
-        new_class = super_new(cls, name, bases, attrs)
-
+    @classmethod
+    def update_ignored(cls, new_class):
         if getattr(new_class, 'Meta', None) is not None:
             # handle just only real classes
             for _, field in new_class._iter_fields():
@@ -48,7 +59,6 @@ class DocumentMetaclass(type):
                 for _, field in new_class._iter_fields():
                     if field.name in ignored:
                         field.mark_as_ignored()
-        return new_class
 
 class AbstractDocument(object):
     __metaclass__ = DocumentMetaclass
@@ -64,24 +74,31 @@ class BaseDocument(AbstractDocument):
         return AbstractDocument.__new__(cls, *args, **kwargs)
 
     def __init__(self, pre_filled=None):
-        self._data = {}
-        self._unprotect = False
-        self._dereferenced = True
+        with self._just_reloaded():
+            self._data = {}
+            self._unprotect = False
+            self._dereferenced = True
+            if pre_filled and isinstance(pre_filled, dict):
+                with self._disabled_protection():
+                    self._fill(pre_filled)
+            elif isinstance(pre_filled, LazyLink):
+                self._dereferenced = False
+                self.__fill_data = pre_filled
+            else:
+                self._initialized = True
+
+    @contextmanager
+    def _just_reloaded(self):
         self._initialized = False
         self._changed = set()
         self._forced = set()
-        if pre_filled and isinstance(pre_filled, dict):
-            self._fill(pre_filled)
-        elif isinstance(pre_filled, LazyLink):
-            self._initialized = False
-            self._dereferenced = False
-            self.__fill_data = pre_filled
-        else:
-            self._initialized = True
+        yield
+        pass
 
     def _force(self, for_fname):
         if not self._dereferenced:
-            self._fill(self.__fill_data.force())
+            with self._disabled_protection():
+                self._fill(self.__fill_data.force())
             del self.__fill_data
             self._forced.add(for_fname)
 
@@ -112,7 +129,10 @@ class BaseDocument(AbstractDocument):
     def is_actual(cls):
         my_schema = cls.schema()
         ignored = getattr(cls.Meta, 'ignored', [])
-        if set(my_schema['fields']).difference(ignored) == set(field.name for _, field in cls._iter_fields(show_ignored=False)):
+        schema_descr = set(my_schema['fields']).difference(ignored)
+        class_descr = set(field.name for _, field in cls._iter_fields(show_ignored=False))
+        if schema_descr == class_descr:
+            # check type for each field
             for _, field in cls._iter_fields():
                 if not field.is_actual_for(my_schema):
                     return False
@@ -120,38 +140,50 @@ class BaseDocument(AbstractDocument):
         else:
             return False
 
-    def save(self):
+    def _save_children(self):
         for pname, field in self._iter_fields():
             nested = getattr(self, pname)
             if field.name in self._forced and isinstance(nested, BaseDocument):
-                print 'nested', nested, pname
                 nested.save()
-        if not self._changed:
-            return
+
+    def _changed_to_dict(self):
         new_values = {}
+
         for pname, field in self._iter_fields():
             fname = field.name
             if fname in self._changed:
                 new_values[fname] = getattr(self, pname)
+        return new_values
+
+    def save(self):
+        self._save_children()
+
+        if not self._changed:
+            return
+
+        new_values = self._changed_to_dict()
         c = connection.get_default_connection()
-        if self.id is None:
+        if self.id is None:             # has never been saved before
             res = c.objects(self.entity_name()).create(new_values)
         else:
             res = c.objects(self.entity_name()).one(self.id).update(new_values)
-        # rework this functionality
-        self._initialized = False
-        self._changed = set()
-        self._forced = set()
-        self._fill(res)
+        with self._just_reloaded():
+            with self._disabled_protection():
+                self._fill(res)
 
     def delete(self):
         c = connection.get_default_connection()
         c.resource(self.uri).delete()
         return True
 
-    def _fill(self, raw_source):
-        # TODO: refactor this
+    @contextmanager
+    def _disabled_protection(self):
+        old_state = self._unprotect
         self._unprotect = True
+        yield old_state
+        self._unprotect = False
+
+    def _fill(self, raw_source):
         my_schema = self.schema()
 
         for pname, cls_field in self._iter_fields():
@@ -160,11 +192,10 @@ class BaseDocument(AbstractDocument):
                 value = raw_source[fname]
             except KeyError:
                 if not cls_field.has_default(instance=self):
-                    raise
+                    raise InitializationError, cls_field.name
             else:
                 setattr(self, pname, cls_field.convert(self, value))
         self._initialized = True
-        self._unprotect = False
         self._dereferenced = True
 
     def __ne__(self, another):
@@ -173,10 +204,14 @@ class BaseDocument(AbstractDocument):
     def __eq__(self, another):
         if not self._dereferenced and not another._dereferenced:
             return self.__fill_data == another.__fill_data
-        for pname, field in self._iter_fields():
-            if getattr(self, pname) != getattr(another, pname):
-                return False
-        return True
+        else:
+            for pname, field in self._iter_fields():
+                if getattr(self, pname) != getattr(another, pname):
+                    return False
+            return True
+
+    def __serialize__(self):
+        return self.uri
 
 class BaseCreatableDocument(BaseDocument):
     created_at = SmartField(default=datetime.datetime.now)
