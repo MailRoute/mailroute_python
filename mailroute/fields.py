@@ -77,53 +77,41 @@ class Reference(object):
             self._de = b
             return b
 
+class Typed(object):
+
+    def is_allowed(self, type_name):
+        has_store = hasattr('store_{0}'.format(type_name), self)
+        has_load = hasattr('load_{0}'.format(type_name), self)
+        return has_store or has_load
+
+    def is_not_allowed(self, type_name):
+        return not self.is_allowed(type_name)
+
+    def convert(self, type_name, value):
+        converter = getattr('load_{0}'.format(type_name), self)
+        return converter(type_name, value)
+
+    def is_valid(self, type_name, value):
+        need_class = getattr('store_{0}'.format(type_name), self)
+        if not isinstance(value, need_class):
+            return False
+        else:
+            return True
+
+    def is_not_valid(self, type_name, value):
+        return not self.is_valid(type_name, value)
+
 class SmartField(object):
 
-    class Transform(object):
+    class Transform(Typed):
 
-        def is_allowed(self, type_name):
-            # TODO: python 2.6 and copy&paste
-            allowed_types = {
-                'string',
-                'integer',
-                'float',
-                'boolean',
-                'datetime'
-            }
-            if type_name in allowed_types:
-                return True
-            else:
-                return False
-
-        def is_not_allowed(self, type_name):
-            return not self.is_allowed(type_name)
-
-        def convert(self, type_name, value):
-            allowed_types = {
-                'string': str,
-                'integer': int,
-                'float': float,
-                'boolean': lambda v: str(v).lower() == 'true',
-                'datetime': lambda v: dateutil.parser.parse(v),
-            }
-            converter = allowed_types[type_name]
-            return converter(value)
-
-        def is_valid(self, type_name, value):
-            allowed_types = {
-                'string': str,
-                'integer': int,
-                'float': float,
-                'boolean': bool,
-                'datetime': datetime.datetime,
-            }
-            if not isinstance(value, allowed_types[type_name]):
-                return False
-            else:
-                return True
-
-        def is_not_valid(self, type_name, value):
-            return not self.is_valid(type_name, value)
+        store_string = load_string = str
+        store_integer = load_integer = int
+        store_float = load_float = float
+        store_boolean = bool
+        load_boolean = lambda v: str(v).lower() == 'true'
+        store_datetime = lambda v: dateutil.parser.parse(v)
+        load_datetime = datetime.datetime
 
     def __init__(self, name=None, required=False, default=None, choices=None):
         self.name = name
@@ -151,10 +139,11 @@ class SmartField(object):
             value = value.dereference(importlib.import_module(instance.__module__))
             
         if value is None:
-            if self.default is None:
-                value = my_schema['fields'][self.name]['default']
-            else:
-                value = self.default
+            if not my_schema['fields'][self.name]['nullable']:
+                if self.default is None:
+                    value = my_schema['fields'][self.name]['default']
+                else:
+                    value = self.default
             if callable(value):
                 value = value()
 
@@ -164,6 +153,10 @@ class SmartField(object):
         my_schema = instance.schema()
         if not instance._unprotect and my_schema['fields'][self.name]['readonly']:
             raise ReadOnlyError, self.name
+        elif my_schema['fields'][self.name]['nullable'] and value is None:
+            # TODO: copy&paste
+            instance._data[self.name] = value
+            instance._mark_as_changed(self.name)
         else:
             self.validate(instance, value)
             if self.name not in instance._data or instance._data[self.name] != value:
@@ -172,7 +165,11 @@ class SmartField(object):
 
     def convert(self, instance, raw_value):
         my_schema = instance.schema()
-        return self._transformer.convert(my_schema['fields'][self.name]['type'], raw_value)
+        # TODO: copy&paste
+        if my_schema['fields'][self.name]['nullable'] and raw_value is None:
+            return None
+        else:
+            return self._transformer.convert(my_schema['fields'][self.name]['type'], raw_value)
 
     def validate(self, instance, value):
         my_schema = instance.schema()
@@ -191,7 +188,7 @@ class SmartField(object):
 
 class SingleRelation(SmartField):
 
-    class Transform(object):
+    class Transform(Typed):
 
         def is_allowed(self, type_name):
             return type_name == 'related'
