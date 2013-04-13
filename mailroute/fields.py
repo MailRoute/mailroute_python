@@ -80,8 +80,8 @@ class Reference(object):
 class Typed(object):
 
     def is_allowed(self, type_name):
-        has_store = hasattr('store_{0}'.format(type_name), self)
-        has_load = hasattr('load_{0}'.format(type_name), self)
+        has_store = hasattr(self, 'store_{0}'.format(type_name))
+        has_load = hasattr(self, 'load_{0}'.format(type_name))
         return has_store or has_load
 
     def is_not_allowed(self, type_name):
@@ -190,19 +190,25 @@ class SingleRelation(SmartField):
 
     class Transform(Typed):
 
-        def is_allowed(self, type_name):
-            return type_name == 'related'
-
-    def convert(self, instance, raw_value):
-        my_schema = instance.schema()
-        t = my_schema['fields'][self.name]['type']
-        rel_type = my_schema['fields'][self.name]['related_type']
-        if t == 'related' and rel_type == 'to_one':
+        def load_related(self, raw_value):
             if raw_value is None:
                 return None
-            return Reference(lambda: instance._force(self.name), self._rel_col, raw_value)
-        else:
-            raise IncompatibleType, t
+            else:
+                return Reference(lambda: instance._force(self.name), self._rel_col, raw_value)
+
+        # def is_allowed(self, type_name):
+        #     return type_name == 'related'
+
+    # def convert(self, instance, raw_value):
+    #     my_schema = instance.schema()
+    #     t = my_schema['fields'][self.name]['type']
+    #     rel_type = my_schema['fields'][self.name]['related_type']
+    #     if t == 'related' and rel_type == 'to_one':
+    #         if raw_value is None:
+    #             return None
+    #         return Reference(lambda: instance._force(self.name), self._rel_col, raw_value)
+    #     else:
+    #         raise IncompatibleType, t
 
     def validate(self, instance, value):
         my_schema = instance.schema()
@@ -238,12 +244,17 @@ class OneToOne(SingleRelation):
         super(OneToOne, self).__init__(name=name, required=required, default=lambda: None)
 
 class OneToMany(SmartField):
+    class Transform(Typed):
+
+        def load_related(self, raw_value):
+            return None
+
     def __init__(self, name=None, required=False, to_collection=None):
         self._rel_col = to_collection
         super(OneToMany, self).__init__(name=name, required=required)
 
-    def convert(self, instance, raw_value):
-        return None
+    # def convert(self, instance, raw_value):
+    #     return None
 
     def __get__(self, instance, owner):
         if instance is None:
@@ -266,11 +277,11 @@ class OneToMany(SmartField):
         else:
             raise ReadOnlyError, self.name
 
-    def is_actual_for(self, schema):
-        # TODO: check ignored
-        return True
-        options = schema['fields'].get(self.name, {})
-        if options['type'] == 'related' and options.get('related_type') == 'to_many':
-            return True
-        else:
-            return False
+    # def is_actual_for(self, schema):
+    #     # TODO: check ignored
+    #     return True
+    #     options = schema['fields'].get(self.name, {})
+    #     if options['type'] == 'related' and options.get('related_type') == 'to_many':
+    #         return True
+    #     else:
+    #         return False
