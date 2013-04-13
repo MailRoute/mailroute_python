@@ -88,11 +88,11 @@ class Typed(object):
         return not self.is_allowed(type_name)
 
     def convert(self, type_name, value):
-        converter = getattr('load_{0}'.format(type_name), self)
+        converter = getattr(self, 'load_{0}'.format(type_name))
         return converter(type_name, value)
 
     def is_valid(self, type_name, value):
-        need_class = getattr('store_{0}'.format(type_name), self)
+        need_class = getattr(self, 'store_{0}'.format(type_name))
         if not isinstance(value, need_class):
             return False
         else:
