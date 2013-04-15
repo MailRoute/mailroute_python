@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import inspect
 import importlib
 import datetime
 import dateutil.parser
@@ -79,24 +80,28 @@ class Reference(object):
 
 class Typed(object):
 
-    def is_allowed(self, type_name):
+    def is_allowed(self, type_name, options):
         has_store = hasattr(self, 'store_{0}'.format(type_name))
         has_load = hasattr(self, 'load_{0}'.format(type_name))
         return has_store or has_load
 
-    def is_not_allowed(self, type_name):
-        return not self.is_allowed(type_name)
+    def is_not_allowed(self, type_name, options):
+        return not self.is_allowed(type_name, options)
 
     def convert(self, type_name, value):
         converter = getattr(self, 'load_{0}'.format(type_name))
-        return converter(type_name, value)
+        return converter(value)
 
     def is_valid(self, type_name, value):
         need_class = getattr(self, 'store_{0}'.format(type_name))
-        if not isinstance(value, need_class):
-            return False
+        if inspect.isfunction(need_class):
+            checker = need_class
+            return checker(value)
         else:
-            return True
+            if not isinstance(value, need_class):
+                return False
+            else:
+                return True
 
     def is_not_valid(self, type_name, value):
         return not self.is_valid(type_name, value)
@@ -110,8 +115,8 @@ class SmartField(object):
         store_float = load_float = float
         store_boolean = bool
         load_boolean = lambda v: str(v).lower() == 'true'
-        store_datetime = lambda v: dateutil.parser.parse(v)
-        load_datetime = datetime.datetime
+        store_datetime = datetime.datetime
+        load_datetime = lambda v: dateutil.parser.parse(v)
 
     def __init__(self, name=None, required=False, default=None, choices=None):
         self.name = name
@@ -173,16 +178,17 @@ class SmartField(object):
 
     def validate(self, instance, value):
         my_schema = instance.schema()
-        t = my_schema['fields'][self.name]['type']
-        if self._transformer.is_not_allowed(t):
-            raise UnknownType, t
-        if self._transformer.is_not_valid(t, value):
-            raise InvalidValue, (value, t)
+        options = my_schema['fields'][self.name]
+        vtype = options['type']
+        if self._transformer.is_not_allowed(vtype, options):
+            raise UnknownType, vtype
+        if self._transformer.is_not_valid(vtype, value):
+            raise InvalidValue, (value, vtype)
 
     def is_actual_for(self, schema):
         options = schema['fields'].get(self.name, {})
         if not self.ignored:
-            return self._transformer.is_allowed(options.get('type'))
+            return self._transformer.is_allowed(options.get('type'), options)
         else:
             return True
 
@@ -196,41 +202,22 @@ class SingleRelation(SmartField):
             else:
                 return Reference(lambda: instance._force(self.name), self._rel_col, raw_value)
 
-        # def is_allowed(self, type_name):
-        #     return type_name == 'related'
+        def store_related(self, value):
+            mod = importlib.import_module(instance.__module__)
+            _ColClass = _resolve_class(self._rel_col, mod)
+            if isinstance(value, (Reference, _ColClass.Entity)):
+                return True
+            elif value is None:
+                return True
+            else:
+                return False
 
-    # def convert(self, instance, raw_value):
-    #     my_schema = instance.schema()
-    #     t = my_schema['fields'][self.name]['type']
-    #     rel_type = my_schema['fields'][self.name]['related_type']
-    #     if t == 'related' and rel_type == 'to_one':
-    #         if raw_value is None:
-    #             return None
-    #         return Reference(lambda: instance._force(self.name), self._rel_col, raw_value)
-    #     else:
-    #         raise IncompatibleType, t
-
-    def validate(self, instance, value):
-        my_schema = instance.schema()
-        t = my_schema['fields'][self.name]['type']
-        if t != 'related':
-            raise IncompatibleType, t
-        rel_type = my_schema['fields'][self.name]['related_type']
-        mod = importlib.import_module(instance.__module__)
-        _ColClass = _resolve_class(self._rel_col, mod)
-        if isinstance(value, (Reference, _ColClass.Entity)):
-            return
-        elif value is None:
-            return
-        else:
-            raise InvalidValue, (value, t)
-
-    def is_actual_for(self, schema):
-        options = schema['fields'].get(self.name, {})
-        if options['type'] == 'related' and options.get('related_type') == 'to_one':
-            return True
-        else:
-            return False
+        def is_actual_for(self, type_name, options):
+            parent_approves = super(self, SingleRelation.Transform).is_actual_for(type_name, options)
+            if parent_approves and options.get('related_type') == 'to_one':
+                return True
+            else:
+                return False
 
 class ForeignField(SingleRelation):
     def __init__(self, name=None, required=False, to_collection=None, back_to=None):
@@ -244,17 +231,22 @@ class OneToOne(SingleRelation):
         super(OneToOne, self).__init__(name=name, required=required, default=lambda: None)
 
 class OneToMany(SmartField):
+
     class Transform(Typed):
 
         def load_related(self, raw_value):
             return None
 
+        def is_actual_for(self, type_name, options):
+            parent_approves = super(self, OneToMany.Transform).is_actual_for(type_name, options)
+            if parent_approves and options.get('related_type') == 'to_many':
+                return True
+            else:
+                return False
+
     def __init__(self, name=None, required=False, to_collection=None):
         self._rel_col = to_collection
         super(OneToMany, self).__init__(name=name, required=required)
-
-    # def convert(self, instance, raw_value):
-    #     return None
 
     def __get__(self, instance, owner):
         if instance is None:
@@ -276,12 +268,3 @@ class OneToMany(SmartField):
             return
         else:
             raise ReadOnlyError, self.name
-
-    # def is_actual_for(self, schema):
-    #     # TODO: check ignored
-    #     return True
-    #     options = schema['fields'].get(self.name, {})
-    #     if options['type'] == 'related' and options.get('related_type') == 'to_many':
-    #         return True
-    #     else:
-    #         return False
