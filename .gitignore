@@ -1,4 +1,4 @@
-*.py[cod]
+*.py[cod~]
 
 # C extensions
 *.so
@@ -17,6 +17,9 @@ develop-eggs
 .installed.cfg
 lib
 lib64
+
+# Environment
+/virtualenv/
 
 # Installer logs
 pip-log.txt
