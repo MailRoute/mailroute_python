@@ -62,15 +62,15 @@ class Reference(object):
         else:
             EntityClass = linker.find_entity_class(self._name_or_class)
 
-            class LazyEntity(_EntityClass):
+            class LazyEntity(EntityClass):
                 pass
-            LazyEntity.__name__ = _EntityClass.__name__
+            LazyEntity.__name__ = EntityClass.__name__
 
             b = LazyEntity(pre_filled=LazyLink(self._path))
 
             ref_self = self
             def __getattribute__(self, key):
-                self.__class__ = _EntityClass
+                self.__class__ = EntityClass
                 ref_self._f_callback()
                 return self.__getattribute__(key)
 
@@ -100,19 +100,19 @@ class Typed(object):
         converter = getattr(self, 'load_{0}'.format(type_name))
         return converter(value)
 
-    def is_valid(self, type_name, value):
+    def is_valid(self, instance, type_name, value):
         need_class = getattr(self, 'store_{0}'.format(type_name))
-        if inspect.isfunction(need_class):
+        if inspect.isfunction(need_class) or inspect.ismethod(need_class):
             checker = need_class
-            return checker(value)
+            return checker(instance, value)
         else:
             if not isinstance(value, need_class):
                 return False
             else:
                 return True
 
-    def is_not_valid(self, type_name, value):
-        return not self.is_valid(type_name, value)
+    def is_not_valid(self, instance, type_name, value):
+        return not self.is_valid(instance, type_name, value)
 
 class SmartField(object):
 
@@ -122,9 +122,9 @@ class SmartField(object):
         store_integer = load_integer = int
         store_float = load_float = float
         store_boolean = bool
-        load_boolean = lambda v: str(v).lower() == 'true'
+        load_boolean = lambda self, v: str(v).lower() == 'true'
         store_datetime = datetime.datetime
-        load_datetime = lambda v: dateutil.parser.parse(v)
+        load_datetime = lambda self, v: dateutil.parser.parse(v)
 
     def __init__(self, name=None, required=False, default=None, choices=None):
         self.name = name
@@ -132,7 +132,10 @@ class SmartField(object):
         self.default = default
         self.choices = choices
         self.ignored = False
-        self._transformer = self.Transform()
+
+    @property
+    def _transformer(self):
+        return self.Transform()
 
     def mark_as_ignored(self):
         self.ignored = True
@@ -189,7 +192,7 @@ class SmartField(object):
         vtype = options['type']
         if self._transformer.is_not_allowed(vtype, options):
             raise UnknownType, vtype
-        if self._transformer.is_not_valid(vtype, value):
+        if self._transformer.is_not_valid(instance, vtype, value):
             raise InvalidValue, (value, vtype)
 
     def is_actual_for(self, schema):
@@ -201,17 +204,28 @@ class SmartField(object):
 
 class SingleRelation(SmartField):
 
+    @property
+    def _transformer(self):
+        rfactory = lambda raw_value: Reference(lambda: instance._force(self.name), self._rel_col, raw_value)
+        rvfactory = lambda in_context_of: Resolver(in_context_of).find_entity_class(self._rel_col)
+        return self.Transform(rfactory, rvfactory)
+
     class Transform(Typed):
+
+        def __init__(self, ref_factory, resolve_factory):
+            super(SingleRelation.Transform, self).__init__()
+            self._ref_factory = ref_factory
+            self._resolve_from = resolve_factory
 
         def load_related(self, raw_value):
             if raw_value is None:
                 return None
             else:
-                return Reference(lambda: instance._force(self.name), self._rel_col, raw_value)
+                return self._ref_factory(raw_value)
 
-        def store_related(self, value):
-            EntityClass = Resolver(instance).find_entity_class(self._rel_col)
-            if isinstance(value, (Reference, _EntityClass)):
+        def store_related(self, into_instance, value):
+            EntityClass = self._resolve_from(into_instance)
+            if isinstance(value, (Reference, EntityClass)):
                 return True
             elif value is None:
                 return True
