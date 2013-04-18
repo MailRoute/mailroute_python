@@ -31,28 +31,33 @@ class LazyLink(object):
     def __eq__(self, another):
         return self._link == another._link
 
-def _resolve_class(class_or_name, instance_module):
-    if isinstance(class_or_name, basestring):
-        try:
-            mod = importlib.import_module('.'.join(class_or_name.split('.')[:-1]))
-        except:
-            mod = instance_module
-        return getattr(mod, class_or_name.split('.')[-1])
-    else:
-        return class_or_name
+class Resolver(object):
+
+    def __init__(self, ctx):
+        self._instance_module = importlib.import_module(ctx.__module__)
+
+    def _resolve_class(self, class_or_name):
+        if isinstance(class_or_name, basestring):
+            try:
+                mod = importlib.import_module('.'.join(class_or_name.split('.')[:-1]))
+            except:
+                mod = self._instance_module
+            return getattr(mod, class_or_name.split('.')[-1])
+        else:
+            return class_or_name
 
 class Reference(object):
     def __init__(self, forcing_callback, rel_col, link):
         self._f_callback = forcing_callback
-        self._ColClass = rel_col
+        self._name_or_class = rel_col
         self._path = link
         self._de = None
 
-    def dereference(self, instance_module):
+    def dereference(self, linker):
         if self._de:
             return self._de
         else:
-            _ColClass = _resolve_class(self._ColClass, instance_module)
+            _ColClass = linker._resolve_class(self._name_or_class)
 
             class LazyEntity(_ColClass.Entity):
                 pass
@@ -140,8 +145,7 @@ class SmartField(object):
         my_schema = instance.schema()
 
         if isinstance(value, Reference):
-            # TODO: remove module trick
-            value = value.dereference(importlib.import_module(instance.__module__))
+            value = value.dereference(linker=Resolver(instance))
             
         if value is None:
             if not my_schema['fields'][self.name]['nullable']:
@@ -203,8 +207,7 @@ class SingleRelation(SmartField):
                 return Reference(lambda: instance._force(self.name), self._rel_col, raw_value)
 
         def store_related(self, value):
-            mod = importlib.import_module(instance.__module__)
-            _ColClass = _resolve_class(self._rel_col, mod)
+            _ColClass = Resolver(instance)._resolve_class(self._rel_col)
             if isinstance(value, (Reference, _ColClass.Entity)):
                 return True
             elif value is None:
@@ -253,9 +256,7 @@ class OneToMany(SmartField):
             return self
         value = instance._data.get(self.name)
         my_schema = instance.schema()
-        # TODO: refactor this copy&paste
-        mod = importlib.import_module(instance.__module__)
-        _ColClass = _resolve_class(self._rel_col, mod)
+        _ColClass = Resolver(instance)._resolve_class(self._rel_col)
         # TODO: improve performance
         for _, field in _ColClass.Entity._iter_fields():
             if isinstance(field, ForeignField) and field._back_to == self.name:
