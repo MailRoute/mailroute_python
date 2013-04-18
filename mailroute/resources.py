@@ -20,6 +20,8 @@ class Branding(QuerySet):
         service_name = SmartField()
         ssl_cert_passphrase = SmartField()
         subdomain = SmartField()
+        contact_us_url = SmartField()
+        page_color = SmartField()
 
     Entity = BrandingEntity
 
