@@ -121,7 +121,10 @@ class QuerySet(object):
                     objs.append(o)
                 return objs
             else:
-                return self.fetch()[ind]
+                if ind.stop is not None:
+                    return self.limit(ind.stop).fetch()[ind]
+                else:
+                    return self.fetch()[ind]
         else:
             if self._cached is not None:
                 info = self._cached['objects'][ind]
