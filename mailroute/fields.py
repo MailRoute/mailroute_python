@@ -36,7 +36,7 @@ class Resolver(object):
     def __init__(self, ctx):
         self._instance_module = importlib.import_module(ctx.__module__)
 
-    def _resolve_class(self, class_or_name):
+    def find_class(self, class_or_name):
         if isinstance(class_or_name, basestring):
             try:
                 mod = importlib.import_module('.'.join(class_or_name.split('.')[:-1]))
@@ -45,6 +45,9 @@ class Resolver(object):
             return getattr(mod, class_or_name.split('.')[-1])
         else:
             return class_or_name
+
+    def find_entity_class(self, class_or_name):
+        return self.find_class(class_or_name).Entity
 
 class Reference(object):
     def __init__(self, forcing_callback, rel_col, link):
@@ -57,17 +60,17 @@ class Reference(object):
         if self._de:
             return self._de
         else:
-            _ColClass = linker._resolve_class(self._name_or_class)
+            EntityClass = linker.find_entity_class(self._name_or_class)
 
-            class LazyEntity(_ColClass.Entity):
+            class LazyEntity(_EntityClass):
                 pass
-            LazyEntity.__name__ = _ColClass.Entity.__name__
+            LazyEntity.__name__ = _EntityClass.__name__
 
             b = LazyEntity(pre_filled=LazyLink(self._path))
 
             ref_self = self
             def __getattribute__(self, key):
-                self.__class__ = _ColClass.Entity
+                self.__class__ = _EntityClass
                 ref_self._f_callback()
                 return self.__getattribute__(key)
 
@@ -207,8 +210,8 @@ class SingleRelation(SmartField):
                 return Reference(lambda: instance._force(self.name), self._rel_col, raw_value)
 
         def store_related(self, value):
-            _ColClass = Resolver(instance)._resolve_class(self._rel_col)
-            if isinstance(value, (Reference, _ColClass.Entity)):
+            EntityClass = Resolver(instance).find_entity_class(self._rel_col)
+            if isinstance(value, (Reference, _EntityClass)):
                 return True
             elif value is None:
                 return True
@@ -256,11 +259,11 @@ class OneToMany(SmartField):
             return self
         value = instance._data.get(self.name)
         my_schema = instance.schema()
-        _ColClass = Resolver(instance)._resolve_class(self._rel_col)
+        ColClass = Resolver(instance).find_class(self._rel_col)
         # TODO: improve performance
-        for _, field in _ColClass.Entity._iter_fields():
+        for _, field in ColClass.Entity._iter_fields():
             if isinstance(field, ForeignField) and field._back_to == self.name:
-                return _ColClass.filter(**{field.name: instance.id})
+                return ColClass.filter(**{field.name: instance.id})
         raise Exception, 'TODO: Backward field is not found'
 
     def __set__(self, instance, value):
