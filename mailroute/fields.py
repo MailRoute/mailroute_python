@@ -88,9 +88,13 @@ class Reference(object):
 
 class Typed(object):
 
-    def is_allowed(self, type_name, options):
-        has_store = hasattr(self, 'store_{0}'.format(type_name))
-        has_load = hasattr(self, 'load_{0}'.format(type_name))
+    def __init__(self, for_instance):
+        self._instance = for_instance
+
+    @classmethod
+    def is_allowed(cls, type_name, options):
+        has_store = hasattr(cls, 'store_{0}'.format(type_name))
+        has_load = hasattr(cls, 'load_{0}'.format(type_name))
         return has_store or has_load
 
     def is_not_allowed(self, type_name, options):
@@ -100,19 +104,19 @@ class Typed(object):
         converter = getattr(self, 'load_{0}'.format(type_name))
         return converter(value)
 
-    def is_valid(self, instance, type_name, value):
+    def is_valid(self, type_name, value):
         need_class = getattr(self, 'store_{0}'.format(type_name))
         if inspect.isfunction(need_class) or inspect.ismethod(need_class):
             checker = need_class
-            return checker(instance, value)
+            return checker(value)
         else:
             if not isinstance(value, need_class):
                 return False
             else:
                 return True
 
-    def is_not_valid(self, instance, type_name, value):
-        return not self.is_valid(instance, type_name, value)
+    def is_not_valid(self, type_name, value):
+        return not self.is_valid(type_name, value)
 
 class SmartField(object):
 
@@ -133,9 +137,8 @@ class SmartField(object):
         self.choices = choices
         self.ignored = False
 
-    @property
-    def _transformer(self):
-        return self.Transform()
+    def _transformer(self, for_instance):
+        return self.Transform(for_instance)
 
     def mark_as_ignored(self):
         self.ignored = True
@@ -184,38 +187,38 @@ class SmartField(object):
         if my_schema['fields'][self.name]['nullable'] and raw_value is None:
             return None
         else:
-            return self._transformer.convert(my_schema['fields'][self.name]['type'], raw_value)
+            return self._transformer(instance).convert(my_schema['fields'][self.name]['type'], raw_value)
 
     def validate(self, instance, value):
         my_schema = instance.schema()
         options = my_schema['fields'][self.name]
         vtype = options['type']
-        if self._transformer.is_not_allowed(vtype, options):
+        tsr = self._transformer(instance)
+        if tsr.is_not_allowed(vtype, options):
             raise UnknownType, vtype
-        if self._transformer.is_not_valid(instance, vtype, value):
+        if tsr.is_not_valid(vtype, value):
             raise InvalidValue, (value, vtype)
 
     def is_actual_for(self, schema):
         options = schema['fields'].get(self.name, {})
         if not self.ignored:
-            return self._transformer.is_allowed(options.get('type'), options)
+            return self.Transform.is_allowed(options.get('type'), options)
         else:
             return True
 
 class SingleRelation(SmartField):
 
-    @property
-    def _transformer(self):
-        rfactory = lambda raw_value: Reference(lambda: instance._force(self.name), self._rel_col, raw_value)
-        rvfactory = lambda in_context_of: Resolver(in_context_of).find_entity_class(self._rel_col)
-        return self.Transform(rfactory, rvfactory)
+    def _transformer(self, for_instance):
+        rfactory = lambda raw_value: Reference(lambda: for_instance._force(self.name), self._rel_col, raw_value)
+        EntityClass = Resolver(for_instance).find_entity_class(self._rel_col)
+        return self.Transform(for_instance, EntityClass, rfactory)
 
     class Transform(Typed):
 
-        def __init__(self, ref_factory, resolve_factory):
-            super(SingleRelation.Transform, self).__init__()
+        def __init__(self, for_instance, EntityClass, ref_factory):
+            super(SingleRelation.Transform, self).__init__(for_instance)
             self._ref_factory = ref_factory
-            self._resolve_from = resolve_factory
+            self._EntityClass = EntityClass
 
         def load_related(self, raw_value):
             if raw_value is None:
@@ -223,17 +226,17 @@ class SingleRelation(SmartField):
             else:
                 return self._ref_factory(raw_value)
 
-        def store_related(self, into_instance, value):
-            EntityClass = self._resolve_from(into_instance)
-            if isinstance(value, (Reference, EntityClass)):
+        def store_related(self, value):
+            if isinstance(value, (Reference, self._EntityClass)):
                 return True
             elif value is None:
                 return True
             else:
                 return False
 
-        def is_actual_for(self, type_name, options):
-            parent_approves = super(self, SingleRelation.Transform).is_actual_for(type_name, options)
+        @classmethod
+        def is_allowed(cls, type_name, options):
+            parent_approves = super(cls, SingleRelation.Transform).is_allowed(type_name, options)
             if parent_approves and options.get('related_type') == 'to_one':
                 return True
             else:
@@ -257,8 +260,9 @@ class OneToMany(SmartField):
         def load_related(self, raw_value):
             return None
 
-        def is_actual_for(self, type_name, options):
-            parent_approves = super(self, OneToMany.Transform).is_actual_for(type_name, options)
+        @classmethod
+        def is_allowed(cls, type_name, options):
+            parent_approves = super(cls, OneToMany.Transform).is_allowed(type_name, options)
             if parent_approves and options.get('related_type') == 'to_many':
                 return True
             else:
