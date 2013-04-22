@@ -13,6 +13,9 @@ class TestQueries(unittest.TestCase):
     def setUp(self):
         mailroute.configure(*self.ACCESS_USER, server='https://ci.mailroute.net')
 
+    def tearDown(self):
+        httpretty.HTTPretty.disable()   # if some test function fails force disabling anyway
+
     def test_limits(self):
         N = 15
         prefix = uuid.uuid4().hex
