@@ -130,12 +130,13 @@ class SmartField(object):
         store_datetime = datetime.datetime
         load_datetime = lambda self, v: dateutil.parser.parse(v)
 
-    def __init__(self, name=None, required=False, default=None, choices=None):
+    def __init__(self, name=None, required=False, default=None, choices=None, nullable=False):
         self.name = name
         self.required = required
         self.default = default
         self.choices = choices
         self.ignored = False
+        self.nullable = nullable
 
     def _transformer(self, for_instance):
         return self.Transform(for_instance)
@@ -147,9 +148,12 @@ class SmartField(object):
         my_schema = instance.schema()
         return not self.required
 
-    def nullable(self):
+    def has_nullable(self, instance):
         my_schema = instance.schema()
-        return my_schema['fields'][self.name]['nullable']
+        if self.name not in my_schema['fields']:
+            return self.nullable
+        else:
+            return my_schema['fields'][self.name].get('nullable', False)
 
     def __get__(self, instance, owner):
         if instance is None:
@@ -161,7 +165,7 @@ class SmartField(object):
             value = value.dereference(linker=Resolver(instance))
             
         if value is None:
-            if not self.nullable():
+            if not self.has_nullable(instance):
                 if self.default is None:
                     value = my_schema['fields'][self.name]['default']
                 else:
@@ -179,7 +183,7 @@ class SmartField(object):
         my_schema = instance.schema()
         if not instance._unprotect and my_schema['fields'][self.name]['readonly']:
             raise ReadOnlyError, self.name
-        elif self.nullable() and value is None:
+        elif self.has_nullable(instance) and value is None:
             self._save(instance, value)
         else:
             self.validate(instance, value)
@@ -188,7 +192,7 @@ class SmartField(object):
 
     def convert(self, instance, raw_value):
         my_schema = instance.schema()
-        if self.nullable() and raw_value is None:
+        if self.has_nullable(instance) and raw_value is None:
             return None
         else:
             return self._transformer(instance).convert(my_schema['fields'][self.name]['type'], raw_value)
@@ -250,12 +254,12 @@ class ForeignField(SingleRelation):
     def __init__(self, name=None, required=False, to_collection=None, back_to=None):
         self._rel_col = to_collection
         self._back_to = back_to
-        super(ForeignField, self).__init__(name=name, required=required, default=lambda: None)
+        super(ForeignField, self).__init__(name=name, required=required, default=lambda: None, nullable=True)
 
 class OneToOne(SingleRelation):
     def __init__(self, name=None, required=False, to_collection=None):
         self._rel_col = to_collection
-        super(OneToOne, self).__init__(name=name, required=required, default=lambda: None)
+        super(OneToOne, self).__init__(name=name, required=required, default=lambda: None, nullable=True)
 
 class OneToMany(SmartField):
 
@@ -294,3 +298,7 @@ class OneToMany(SmartField):
             return
         else:
             raise ReadOnlyError, self.name
+
+    def convert(self, instance, raw_value):
+        # ignore any loaded values from object for one -> many relation
+        return []
