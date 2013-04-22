@@ -147,6 +147,10 @@ class SmartField(object):
         my_schema = instance.schema()
         return not self.required
 
+    def nullable(self):
+        my_schema = instance.schema()
+        return my_schema['fields'][self.name]['nullable']
+
     def __get__(self, instance, owner):
         if instance is None:
             return self
@@ -157,7 +161,7 @@ class SmartField(object):
             value = value.dereference(linker=Resolver(instance))
             
         if value is None:
-            if not my_schema['fields'][self.name]['nullable']:
+            if not self.nullable():
                 if self.default is None:
                     value = my_schema['fields'][self.name]['default']
                 else:
@@ -167,24 +171,24 @@ class SmartField(object):
 
         return value
 
+    def _save(self, instance, value):
+        instance._data[self.name] = value
+        instance._mark_as_changed(self.name)
+
     def __set__(self, instance, value):
         my_schema = instance.schema()
         if not instance._unprotect and my_schema['fields'][self.name]['readonly']:
             raise ReadOnlyError, self.name
-        elif my_schema['fields'][self.name]['nullable'] and value is None:
-            # TODO: copy&paste
-            instance._data[self.name] = value
-            instance._mark_as_changed(self.name)
+        elif self.nullable() and value is None:
+            self._save(instance, value)
         else:
             self.validate(instance, value)
             if self.name not in instance._data or instance._data[self.name] != value:
-                instance._data[self.name] = value
-                instance._mark_as_changed(self.name)
+                self._save(instance, value)
 
     def convert(self, instance, raw_value):
         my_schema = instance.schema()
-        # TODO: copy&paste
-        if my_schema['fields'][self.name]['nullable'] and raw_value is None:
+        if self.nullable() and raw_value is None:
             return None
         else:
             return self._transformer(instance).convert(my_schema['fields'][self.name]['type'], raw_value)
