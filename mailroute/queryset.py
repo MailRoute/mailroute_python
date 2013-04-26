@@ -108,14 +108,14 @@ class QuerySet(object):
 
     def __len__(self):
         if self._cached is not None:
-            return len(self._cached['meta']['total_count'])
+            return int(self._cached['meta']['total_count'])
         else:
             lazy_fetch = iter(self)
             try:
                 lazy_fetch.next()
             except StopIteration:
                 pass
-            return self._cached['meta']['total_count']
+            return int(self._cached['meta']['total_count'])
 
     def __getitem__(self, ind):
         if isinstance(ind, slice):
@@ -144,8 +144,8 @@ class QuerySet(object):
                     return
 
     def __iter__(self):
+        c = connection.get_default_connection()
         if self._cached is None:
-            c = connection.get_default_connection()
             self._cached = ans = c.objects(self.entity_name()).get(**self._filters)
         else:
             ans = self._cached
@@ -158,7 +158,7 @@ class QuerySet(object):
             if not self._cached['meta']['next']:
                 break
 
-            next_piece_url = self._cached['next']
+            next_piece_url = self._cached['meta']['next']
             ans = c.resource(next_piece_url).get()
 
             self._cached['meta'] = ans['meta']

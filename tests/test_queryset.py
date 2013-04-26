@@ -158,9 +158,9 @@ class TestQueries(unittest.TestCase):
 
         (person,) = resellers
         old_id = person.id
-        person.delete()
+        person.delete().should.be.ok
         person.id.should.be.none
-        person.delete()
+        person.delete().should_not.be.ok
         person.id.should.be.none
         # try to double delete it again
         mailroute.Reseller.delete.when.called_with([old_id]).should.throw('DoesNotExist')

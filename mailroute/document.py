@@ -65,7 +65,7 @@ class AbstractDocument(object):
 
 class BaseDocument(AbstractDocument):
 
-    id = SmartField(default=lambda: None)
+    id = SmartField(default=lambda: None, nullable=True, readonly=True)
     uri = SmartField(name='resource_uri', default=lambda: None)
 
     def __new__(cls, *args, **kwargs):
@@ -172,9 +172,14 @@ class BaseDocument(AbstractDocument):
                 self._fill(res)
 
     def delete(self):
-        c = connection.get_default_connection()
-        c.resource(self.uri).delete()
-        return True
+        if self.id is not None:
+            c = connection.get_default_connection()
+            c.resource(self.uri).delete()
+            with self._disabled_protection():
+                self.id = None
+            return True
+        else:
+            return False
 
     @contextmanager
     def _disabled_protection(self):
