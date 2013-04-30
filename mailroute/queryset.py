@@ -2,17 +2,11 @@
 import itertools
 from . import connection
 
-class DoesNotExist(Exception):
-    pass
-
-
 class MultipleObjectsReturned(Exception):
     pass
 
-
 class InvalidQueryError(Exception):
     pass
-
 
 class InvalidFilter(InvalidQueryError):
     pass
@@ -23,6 +17,8 @@ class InvalidOrder(InvalidQueryError):
 class OperationError(Exception):
     pass
 
+class DeleteError(OperationError):
+    pass
 
 class NotUniqueError(OperationError):
     pass
@@ -73,12 +69,21 @@ class QuerySet(object):
     @classmethod
     def delete(cls, resources):
         c = connection.get_default_connection()
+        issues = []
         for entity in resources:
             if isinstance(entity, (basestring, int)):
                 oid = str(entity)
-                c.objects(cls.entity_name()).one(oid).delete()
+                try:
+                    c.objects(cls.entity_name()).one(oid).delete()
+                except connection.NotFound, e:
+                    issues.append((oid, e))
             else:
-                entity.delete()
+                try:
+                    entity.delete()
+                except Exception, e:
+                    issues.append((entity, e))
+        if issues:
+            raise DeleteError, (issues,)
 
     # DON'T MAKE THIS METHODS (limit & offset) as classmethods
     def limit(self, num):

@@ -5,6 +5,9 @@ from contextlib import contextmanager
 from fields import LazyLink, SmartField, OneToMany, OneToOne, ForeignField
 from . import connection
 
+class DoesNotExist(Exception):
+    pass
+
 class NotActualSchema(Exception):
     pass
 
@@ -174,7 +177,10 @@ class BaseDocument(AbstractDocument):
     def delete(self):
         if self.id is not None:
             c = connection.get_default_connection()
-            c.resource(self.uri).delete()
+            try:
+                c.resource(self.uri).delete()
+            except connection.NotFound:
+                raise DoesNotExist, self.id
             with self._disabled_protection():
                 self.id = None
             return True
