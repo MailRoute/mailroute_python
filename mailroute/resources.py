@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logic
 from queryset import QuerySet
 from document import BaseDocument, AbstractDocument, BaseCreatableDocument
 from fields import SmartField, OneToMany, OneToOne, ForeignField
@@ -27,7 +28,7 @@ class Branding(QuerySet):
 
 
 class Reseller(QuerySet):
-    class ResellerEntity(BaseCreatableDocument):
+    class ResellerEntity(BaseCreatableDocument, logic.ResellerMixin):
         class Meta:
             entity_name = 'reseller'
 
@@ -37,6 +38,7 @@ class Reseller(QuerySet):
         branding_info = OneToOne(to_collection='Branding')
         contacts = OneToMany(to_collection='ContactReseller')
         customers = OneToMany(to_collection='Customer')
+
     Entity = ResellerEntity
 
 class Admins(QuerySet):

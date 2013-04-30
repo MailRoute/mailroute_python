@@ -130,13 +130,14 @@ class SmartField(object):
         store_datetime = datetime.datetime
         load_datetime = lambda self, v: dateutil.parser.parse(v)
 
-    def __init__(self, name=None, required=False, default=None, choices=None, nullable=False):
+    def __init__(self, name=None, required=False, default=None, choices=None, nullable=False, readonly=False):
         self.name = name
         self.required = required
         self.default = default
         self.choices = choices
         self.ignored = False
         self.nullable = nullable
+        self.readonly = readonly
 
     def _transformer(self, for_instance):
         return self.Transform(for_instance)
@@ -153,7 +154,7 @@ class SmartField(object):
         if self.name not in my_schema['fields']:
             return self.nullable
         else:
-            return my_schema['fields'][self.name].get('nullable', False)
+            return my_schema['fields'][self.name].get('nullable', False) or self.nullable
 
     def __get__(self, instance, owner):
         if instance is None:
@@ -181,7 +182,7 @@ class SmartField(object):
 
     def __set__(self, instance, value):
         my_schema = instance.schema()
-        if not instance._unprotect and my_schema['fields'][self.name]['readonly']:
+        if not instance._unprotect and (my_schema['fields'][self.name]['readonly'] or self.readonly):
             raise ReadOnlyError, self.name
         elif self.has_nullable(instance) and value is None:
             self._save(instance, value)

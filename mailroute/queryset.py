@@ -1,17 +1,12 @@
 # -*- coding: utf-8 -*-
+import itertools
 from . import connection
-
-class DoesNotExist(Exception):
-    pass
-
 
 class MultipleObjectsReturned(Exception):
     pass
 
-
 class InvalidQueryError(Exception):
     pass
-
 
 class InvalidFilter(InvalidQueryError):
     pass
@@ -22,6 +17,8 @@ class InvalidOrder(InvalidQueryError):
 class OperationError(Exception):
     pass
 
+class DeleteError(OperationError):
+    pass
 
 class NotUniqueError(OperationError):
     pass
@@ -72,12 +69,21 @@ class QuerySet(object):
     @classmethod
     def delete(cls, resources):
         c = connection.get_default_connection()
+        issues = []
         for entity in resources:
             if isinstance(entity, (basestring, int)):
                 oid = str(entity)
-                c.objects(cls.entity_name()).one(oid).delete()
+                try:
+                    c.objects(cls.entity_name()).one(oid).delete()
+                except connection.NotFound, e:
+                    issues.append((oid, e))
             else:
-                entity.delete()
+                try:
+                    entity.delete()
+                except Exception, e:
+                    issues.append((entity, e))
+        if issues:
+            raise DeleteError, (issues,)
 
     # DON'T MAKE THIS METHODS (limit & offset) as classmethods
     def limit(self, num):
@@ -107,39 +113,58 @@ class QuerySet(object):
 
     def __len__(self):
         if self._cached is not None:
-            return len(self._cached['objects'])
+            return int(self._cached['meta']['total_count'])
         else:
-            return sum(1 for _ in self)
+            lazy_fetch = iter(self)
+            try:
+                lazy_fetch.next()
+            except StopIteration:
+                pass
+            return int(self._cached['meta']['total_count'])
 
     def __getitem__(self, ind):
         if isinstance(ind, slice):
-            if self._cached is not None:
-                infos = self._cached['objects'][ind]
-                objs = []
-                for info in infos:
-                    o = self.__class__.Entity(pre_filled=info)
-                    objs.append(o)
-                return objs
+            if self._cached is not None or ind.stop is None:
+                return itertools.islice(self, ind.start, ind.stop, ind.step)
             else:
-                if ind.stop is not None:
-                    return self.limit(ind.stop).fetch()[ind]
+                start, stop = ind.start or 0, ind.stop or 0
+                if start:
+                    query = self.offset(start)
                 else:
-                    return self.fetch()[ind]
+                    query = self
+                return query.limit(stop - start).fetch()
         else:
-            if self._cached is not None:
-                info = self._cached['objects'][ind]
-                o = self.__class__.Entity(pre_filled=info)
-                return o
-            else:
-                return self.fetch()[ind]
+            self._cache_until(ind)
+            info = self._cached['objects'][ind]
+            o = self.__class__.Entity(pre_filled=info)
+            return o
+
+    def _cache_until(self, ind):
+        if len(self) > ind:
+            pass
+        else:
+            # TODO: improve performance, combine code with __iter__
+            for i, _ in enumerate(self):
+                if i >= ind:
+                    return
 
     def __iter__(self):
+        c = connection.get_default_connection()
         if self._cached is None:
-            c = connection.get_default_connection()
             self._cached = ans = c.objects(self.entity_name()).get(**self._filters)
         else:
             ans = self._cached
 
-        for info in ans['objects']:
-            o = self.__class__.Entity(pre_filled=info)
-            yield o
+        while True:
+            for info in ans['objects']:
+                o = self.__class__.Entity(pre_filled=info)
+                yield o
+
+            if not self._cached['meta']['next']:
+                break
+
+            next_piece_url = self._cached['meta']['next']
+            ans = c.resource(next_piece_url).get()
+
+            self._cached['meta'] = ans['meta']
+            self._cached['objects'].extend(ans['objects'])
