@@ -218,7 +218,8 @@ class BaseDocument(AbstractDocument):
                 return self.__fill_data == another.__fill_data
             else:
                 for pname, field in self._iter_fields():
-                    if getattr(self, pname) != getattr(another, pname):
+                    # TODO: make this condition better not so rough
+                    if getattr(self, pname) != getattr(another, pname) and not isinstance(field, OneToMany):
                         return False
                 return True
         else:
