@@ -215,7 +215,7 @@ class BaseDocument(AbstractDocument):
         return not (self == another)
 
     def __eq__(self, another):
-        if isinstance(another, self.__class__):
+        if isinstance(another, BaseDocument):
             if not self._dereferenced and not another._dereferenced:
                 return self.__fill_data == another.__fill_data
             else:
