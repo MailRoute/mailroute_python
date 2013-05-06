@@ -70,10 +70,13 @@ class Reference(object):
 
             ref_self = self
             def __getattribute__(self, key):
-                self.__class__ = EntityClass
-                self._force()
-                ref_self._f_callback()
-                return self.__getattribute__(key)
+                if key.startswith('_'):
+                    return EntityClass.__getattribute__(self, key)
+                else:
+                    self.__class__ = EntityClass
+                    self._force()
+                    ref_self._f_callback()
+                    return self.__getattribute__(key)
 
             def __setattr__(self, key, value):
                 if key == '__class__':
