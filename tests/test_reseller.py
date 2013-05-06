@@ -24,7 +24,8 @@ class TestCustomMethods(unittest.TestCase):
             'email': '{0}@test-mail.com'.format(prefix),
             'first_name': prefix
         })
-        (contact1,) = mailroute.ContactReseller.filter(first_name=prefix)
+        (contact1,) = mailroute.ContactReseller.filter(email='{0}@test-mail.com'.format(prefix))
+        contact1.first_name.should.be.equal(prefix)
         (contact2,) = res_obj.contacts
         contact1.should.be.equal(contact2)
 
