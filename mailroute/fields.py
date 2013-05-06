@@ -71,6 +71,7 @@ class Reference(object):
             ref_self = self
             def __getattribute__(self, key):
                 self.__class__ = EntityClass
+                self._force()
                 ref_self._f_callback()
                 return self.__getattribute__(key)
 
@@ -218,7 +219,7 @@ class SmartField(object):
 class SingleRelation(SmartField):
 
     def _transformer(self, for_instance):
-        rfactory = lambda raw_value: Reference(lambda: for_instance._force(self.name), self._rel_col, raw_value)
+        rfactory = lambda raw_value: Reference(lambda: for_instance._mark_as_forced(self.name), self._rel_col, raw_value)
         EntityClass = Resolver(for_instance).find_entity_class(self._rel_col)
         return self.Transform(for_instance, EntityClass, rfactory)
 

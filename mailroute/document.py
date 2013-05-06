@@ -98,12 +98,14 @@ class BaseDocument(AbstractDocument):
         yield
         pass
 
-    def _force(self, for_fname):
+    def _mark_as_forced(self, for_fname):
+        self._forced.add(for_fname)
+
+    def _force(self):
         if not self._dereferenced:
             with self._disabled_protection():
                 self._fill(self.__fill_data.force())
             del self.__fill_data
-            self._forced.add(for_fname)
 
     def _mark_as_changed(self, fname):
         if self._initialized:
