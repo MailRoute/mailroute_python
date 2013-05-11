@@ -38,6 +38,7 @@ class Reseller(QuerySet):
         branding_info = OneToOne(to_collection='Branding')
         contacts = OneToMany(to_collection='ContactReseller')
         customers = OneToMany(to_collection='Customer')
+        admins = OneToMany(to_collection='Admins')
 
     Entity = ResellerEntity
 
@@ -45,7 +46,6 @@ class Admins(QuerySet):
     class AdminsEntity(BaseDocument):
         class Meta:
             entity_name = 'admins'
-            ignored = ['reseller', 'customer']
 
         date_joined = SmartField()
         email = SmartField()
@@ -53,6 +53,8 @@ class Admins(QuerySet):
         last_login = SmartField()
         send_welcome = SmartField()
         username = SmartField()
+        reseller = ForeignField(to_collection='Reseller', back_to='admins')
+        customer = ForeignField(to_collection='Customer', back_to='admins')
 
     Entity = AdminsEntity
 
@@ -120,6 +122,7 @@ class Customer(QuerySet):
         reseller = ForeignField(to_collection='Reseller', back_to='customers')
         contacts = OneToMany(to_collection='ContactCustomer')
         domains = OneToMany(to_collection='Domain')
+        admins = OneToMany(to_collection='Admins')
 
     Entity = CustomerEntity
 

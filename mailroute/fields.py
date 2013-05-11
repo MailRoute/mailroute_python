@@ -290,10 +290,12 @@ class OneToMany(SmartField):
             return self
         value = instance._data.get(self.name)
         my_schema = instance.schema()
-        ColClass = Resolver(instance).find_class(self._rel_col)
+        rs = Resolver(instance)
+        ColClass = rs.find_class(self._rel_col)
         # TODO: improve performance
         for _, field in ColClass.Entity._iter_fields():
-            if isinstance(field, ForeignField) and field._back_to == self.name:
+            print instance, owner
+            if isinstance(field, ForeignField) and field._back_to == self.name and rs.find_entity_class(field._rel_col) == owner:
                 return ColClass.filter(**{field.name: instance.id})
         raise Exception, 'TODO: Backward field is not found'
 
