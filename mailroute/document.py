@@ -171,7 +171,7 @@ class BaseDocument(AbstractDocument):
         if self.id is None:             # has never been saved before
             res = c.objects(self.entity_name()).create(new_values)
         else:
-            res = c.objects(self.entity_name()).one(self.id).update(new_values)
+            res = c.resource(self.uri).update(new_values)
         with self._just_reloaded():
             with self._disabled_protection():
                 self._fill(res)
