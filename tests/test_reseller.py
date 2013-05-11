@@ -32,6 +32,13 @@ class TestCustomMethods(unittest.TestCase):
         len(res_obj.contacts.filter(first_name='Unknown')).should.be.equal(0)
         new_one.delete()
 
+    def test_fresh_admins(self):
+        prefix = uuid.uuid4().hex
+        new_name = '{0} Reseller'.format(prefix)
+        res_obj = mailroute.Reseller.create(name=new_name)
+        list(res_obj.admins).should.be.empty
+        res_obj.delete()
+
     def test_new_admin(self):
         prefix = uuid.uuid4().hex
         new_name = '{0} Reseller'.format(prefix)
