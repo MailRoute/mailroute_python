@@ -296,7 +296,6 @@ class OneToMany(SmartField):
         ColClass = rs.find_class(self._rel_col)
         # TODO: improve performance
         for _, field in ColClass.Entity._iter_fields():
-            print instance, owner
             if isinstance(field, ForeignField) and field._back_to == self.name and rs.find_entity_class(field._rel_col) == owner:
                 return ColClass.filter(**{field.name: instance.id})
         raise ReferenceIssue, ('Backward field {0} is not found in the {1}'.format(self.name, ColClass),)
