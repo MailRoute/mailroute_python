@@ -165,7 +165,10 @@ class TestQueries(unittest.TestCase):
         # try to double delete it again
         mailroute.Reseller.delete.when.called_with([old_id]).should.throw(mailroute.DeleteError)
 
-        resellers = mailroute.Reseller.filter(name='Testing reseller')
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix))
+        resellers.should.be.empty
+        another_prefix = uuid.uuid4().hex
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(another_prefix))
         resellers.should.be.empty
 
     def test_mass_deletion_by_instance(self):
