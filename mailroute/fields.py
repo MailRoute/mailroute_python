@@ -13,6 +13,8 @@ class IncompatibleType(Exception):
     pass
 class UnknownType(IncompatibleType):
     pass
+class ReferenceIssue(Exception):
+    pass
 
 class LazyLink(object):
     def __init__(self, link):
@@ -297,7 +299,7 @@ class OneToMany(SmartField):
             print instance, owner
             if isinstance(field, ForeignField) and field._back_to == self.name and rs.find_entity_class(field._rel_col) == owner:
                 return ColClass.filter(**{field.name: instance.id})
-        raise Exception, 'TODO: Backward field is not found'
+        raise ReferenceIssue, ('Backward field {0} is not found in the {1}'.format(self.name, ColClass),)
 
     def __set__(self, instance, value):
         # ignore backward references collections
