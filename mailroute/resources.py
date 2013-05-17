@@ -2,7 +2,7 @@
 import logic
 from queryset import QuerySet, VirtualQuerySet
 from document import BaseDocument, AbstractDocument, BaseCreatableDocument, VirtualDocument
-from fields import SmartField, OneToMany, OneToOne, ForeignField
+from fields import SmartField, OneToMany, OneToOne, ForeignField, VirtualOneToMany
 
 class Branding(QuerySet):
     class BrandingEntity(BaseCreatableDocument):
