@@ -83,6 +83,13 @@ class Resource(object):
         else:
             raise FinalResource, self.path
 
+    def sub(self, *elements):
+        if not self._final:
+            elements = map(str, elements) + ['']
+            return Resource(urlparse.urljoin(self.path, '/'.join(elements)), auth=self._auth)
+        else:
+            raise FinalResource, self.path
+
     def create(self, data):
         try:
             res = requests.post(self.path, data=self._dumper.encode(data), headers=self._auth)
