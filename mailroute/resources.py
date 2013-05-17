@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logic
-from queryset import QuerySet
-from document import BaseDocument, AbstractDocument, BaseCreatableDocument
+from queryset import QuerySet, VirtualQuerySet
+from document import BaseDocument, AbstractDocument, BaseCreatableDocument, VirtualDocument
 from fields import SmartField, OneToMany, OneToOne, ForeignField
 
 class Branding(QuerySet):
@@ -38,12 +38,12 @@ class Reseller(QuerySet):
         branding_info = OneToOne(to_collection='Branding')
         contacts = OneToMany(to_collection='ContactReseller')
         customers = OneToMany(to_collection='Customer')
-        admins = OneToMany(to_collection='Admins')
+        admins = VirtualOneToMany(to_collection='Admins')
 
     Entity = ResellerEntity
 
-class Admins(QuerySet):
-    class AdminsEntity(BaseDocument):
+class Admins(VirtualQuerySet):
+    class AdminsEntity(VirtualDocument):
         class Meta:
             entity_name = 'admins'
 
@@ -122,7 +122,7 @@ class Customer(QuerySet):
         reseller = ForeignField(to_collection='Reseller', back_to='customers')
         contacts = OneToMany(to_collection='ContactCustomer')
         domains = OneToMany(to_collection='Domain')
-        admins = OneToMany(to_collection='Admins')
+        admins = VirtualOneToMany(to_collection='Admins')
 
     Entity = CustomerEntity
 

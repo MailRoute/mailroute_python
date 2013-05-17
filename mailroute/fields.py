@@ -287,6 +287,9 @@ class OneToMany(SmartField):
         self._rel_col = to_collection
         super(OneToMany, self).__init__(name=name, required=required)
 
+    def _new_query(self, owner, ColClass, field_name, iid):
+        return ColClass.filter(**{field_name: iid})
+
     def __get__(self, instance, owner):
         if instance is None:
             return self
@@ -297,7 +300,7 @@ class OneToMany(SmartField):
         # TODO: improve performance
         for _, field in ColClass.Entity._iter_fields():
             if isinstance(field, ForeignField) and field._back_to == self.name and rs.find_entity_class(field._rel_col) == owner:
-                return ColClass.filter(**{field.name: instance.id})
+                return self._new_query(owner, ColClass, field.name, instance.id)
         raise ReferenceIssue, ('Backward field {0} is not found in the {1}'.format(self.name, ColClass),)
 
     def __set__(self, instance, value):
@@ -310,3 +313,8 @@ class OneToMany(SmartField):
     def convert(self, instance, raw_value):
         # ignore any loaded values from object for one -> many relation
         return []
+
+class VirtualOneToMany(OneToMany):
+
+    def _new_query(self, owner, ColClass, field_name, iid):
+        return ColClass(owner.Entity.entity_name(), iid)

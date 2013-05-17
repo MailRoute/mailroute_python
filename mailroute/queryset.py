@@ -34,10 +34,13 @@ class QuerySet(object):
     def entity_name(cls):
         return cls.Entity.entity_name()
 
+    def _resource_point(self):
+        c = connection.get_default_connection()
+        return c.objects(cls.entity_name())
+
     @classmethod
     def get(cls, id):
-        c = connection.get_default_connection()
-        o = cls.Entity(pre_filled=c.objects(cls.entity_name()).one(id).get())
+        o = cls.Entity(pre_filled=self._resource_point().one(id).get())
         return o
 
     @classmethod
@@ -68,13 +71,12 @@ class QuerySet(object):
 
     @classmethod
     def delete(cls, resources):
-        c = connection.get_default_connection()
         issues = []
         for entity in resources:
             if isinstance(entity, (basestring, int)):
                 oid = str(entity)
                 try:
-                    c.objects(cls.entity_name()).one(oid).delete()
+                    self._resource_point().one(oid).delete()
                 except connection.NotFound, e:
                     issues.append((oid, e))
             else:
@@ -151,7 +153,7 @@ class QuerySet(object):
     def __iter__(self):
         c = connection.get_default_connection()
         if self._cached is None:
-            self._cached = ans = c.objects(self.entity_name()).get(**self._filters)
+            self._cached = ans = self._resource_point().get(**self._filters)
         else:
             ans = self._cached
 
@@ -168,3 +170,14 @@ class QuerySet(object):
 
             self._cached['meta'] = ans['meta']
             self._cached['objects'].extend(ans['objects'])
+
+class VirtualQuerySet(QuerySet):
+
+    def __init__(self, linked_entity_name, main_id, **kwargs):
+        super(VirtualQuerySet, self).__init__(**kwargs)
+        self._lnk_ename = linked_entity_name
+        self._main_id = main_id
+
+    def _resource_point(self):
+        c = connection.get_default_connection()
+        return c.objects(cls.entity_name()).sub(self._lnk_ename, self._main_id)

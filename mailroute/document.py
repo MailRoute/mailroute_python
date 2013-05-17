@@ -160,6 +160,13 @@ class BaseDocument(AbstractDocument):
                 new_values[fname] = getattr(self, pname)
         return new_values
 
+    def _resource_point(self):
+        c = connection.get_default_connection()
+        if self.id is None:
+            return c.objects(self.entity_name())
+        else:
+            return c.resource(self.uri)
+
     def save(self):
         self._save_children()
 
@@ -167,11 +174,11 @@ class BaseDocument(AbstractDocument):
             return
 
         new_values = self._changed_to_dict()
-        c = connection.get_default_connection()
         if self.id is None:             # has never been saved before
-            res = c.objects(self.entity_name()).create(new_values)
+            res = self._resource_point().create(new_values)
         else:
-            res = c.resource(self.uri).update(new_values)
+            res = self._resource_point().update(new_values)
+
         with self._just_reloaded():
             with self._disabled_protection():
                 self._fill(res)
@@ -229,6 +236,20 @@ class BaseDocument(AbstractDocument):
 
     def __serialize__(self):
         return self.uri
+
+class VirtualDocument(BaseDocument):
+
+    def __init__(self, linked_entity_name, main_id, pre_filled=None):
+        super(VirtualDocument, self).__init__(pre_filled=pre_filled)
+        self._lnk_ename = linked_entity_name
+        self._main_id = main_id
+
+    def _resource_point(self):
+        res = super(VirtualDocument, self)._resource_point()
+        if self.id is None:     # this point is for creation of entity
+            return res.sub(self._lnk_ename, self._main_id)
+        else:
+            return res
 
 class BaseCreatableDocument(BaseDocument):
     created_at = SmartField(default=datetime.datetime.now)
