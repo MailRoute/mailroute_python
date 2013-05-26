@@ -31,6 +31,10 @@ class QuerySet(object):
         self._cached = None
 
     @classmethod
+    def _make_instance(cls, *args, **kwargs):
+        return cls.Entity(*args, **kwargs)
+
+    @classmethod
     def entity_name(cls):
         return cls.Entity.entity_name()
 
@@ -41,12 +45,12 @@ class QuerySet(object):
 
     @classmethod
     def get(cls, id):
-        o = cls.Entity(pre_filled=cls._resource_point().one(id).get())
+        o = cls._make_instance(pre_filled=cls._resource_point().one(id).get())
         return o
 
     @classmethod
     def create(cls, **initial):
-        o = cls.Entity()
+        o = cls._make_instance()
         # because we really want to mark fields to be changed in this case
         for pname, value in initial.iteritems():
             setattr(o, pname, value)
@@ -139,7 +143,7 @@ class QuerySet(object):
         else:
             self._cache_until(ind)
             info = self._cached['objects'][ind]
-            o = self.__class__.Entity(pre_filled=info)
+            o = self._make_instance(pre_filled=info)
             return o
 
     def _cache_until(self, ind):
@@ -160,7 +164,7 @@ class QuerySet(object):
 
         while True:
             for info in ans['objects']:
-                o = self.__class__.Entity(pre_filled=info)
+                o = self._make_instance(pre_filled=info)
                 yield o
 
             if not self._cached['meta']['next']:
@@ -179,7 +183,20 @@ class VirtualQuerySet(QuerySet):
         self._lnk_ename = linked_entity_name
         self._main_id = main_id
 
+    # TODO: HACK! remove this or rework
+    def create(self, **initial):
+        o = self._make_instance()
+        for pname, value in initial.iteritems():
+            setattr(o, pname, value)
+        o.save()
+        return o
+
+    # WARNING: HACKS below
     # TODO: parent has classmethod, but here we specify object method
     def _resource_point(self):
         c = connection.get_default_connection()
         return c.objects(self.entity_name()).sub(self._lnk_ename, self._main_id)
+
+    # TODO: parent has class method!
+    def _make_instance(self, *args, **kwargs):
+        return self.Entity(self._lnk_ename, self._main_id, *args, **kwargs)

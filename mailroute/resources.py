@@ -46,6 +46,8 @@ class Admins(VirtualQuerySet):
     class AdminsEntity(VirtualDocument):
         class Meta:
             entity_name = 'admins'
+            # TODO: it's not really fully ignored fields, rename this property according to the real meaning
+            ignored = ('reseller', 'customer')
 
         date_joined = SmartField()
         email = SmartField()
