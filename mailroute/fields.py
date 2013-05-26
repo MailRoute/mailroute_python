@@ -317,4 +317,4 @@ class OneToMany(SmartField):
 class VirtualOneToMany(OneToMany):
 
     def _new_query(self, owner, ColClass, field_name, iid):
-        return ColClass(owner.Entity.entity_name(), iid)
+        return ColClass(owner.entity_name(), iid)

@@ -34,13 +34,14 @@ class QuerySet(object):
     def entity_name(cls):
         return cls.Entity.entity_name()
 
-    def _resource_point(self):
+    @classmethod
+    def _resource_point(cls):
         c = connection.get_default_connection()
         return c.objects(cls.entity_name())
 
     @classmethod
     def get(cls, id):
-        o = cls.Entity(pre_filled=self._resource_point().one(id).get())
+        o = cls.Entity(pre_filled=cls._resource_point().one(id).get())
         return o
 
     @classmethod
@@ -178,6 +179,7 @@ class VirtualQuerySet(QuerySet):
         self._lnk_ename = linked_entity_name
         self._main_id = main_id
 
+    # TODO: parent has classmethod, but here we specify object method
     def _resource_point(self):
         c = connection.get_default_connection()
-        return c.objects(cls.entity_name()).sub(self._lnk_ename, self._main_id)
+        return c.objects(self.entity_name()).sub(self._lnk_ename, self._main_id)
