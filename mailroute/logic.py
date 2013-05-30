@@ -3,10 +3,11 @@
 class ResellerMixin(object):
 
     def create_admin(self, email, send_welcome):
-        pass
+        self.admins.create(email=email, send_welcome=send_welcome)
 
     def delete_admin(self, email):
-        pass
+        (admin_obj,) = self.admins.filter(email=email)
+        admin_obj.delete()
 
     def create_contact(self, params):
         pass
