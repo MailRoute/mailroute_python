@@ -24,3 +24,6 @@ class EmailAccount(QuerySet):
         send_welcome = SmartField()
 
     Entity = EmailAccountEntity
+
+    def add_alias(local_part):
+        self.localpart_aliases.create(email_account=self, local_part=local_part)
