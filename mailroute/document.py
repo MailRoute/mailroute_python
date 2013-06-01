@@ -167,11 +167,19 @@ class BaseDocument(AbstractDocument):
         else:
             return c.resource(self.uri)
 
+    def _check_all_required(self):
+        for pname, cls_field in self._iter_fields():
+            # TODO: check _data through __get__ of field
+            if not cls_field.has_default(instance=self) and pname not in self._data:
+                raise InitializationError, cls_field.name
+
     def save(self):
         self._save_children()
 
         if not self._changed:
             return
+
+        self._check_all_required()
 
         new_values = self._changed_to_dict()
         if self.id is None:             # has never been saved before

@@ -221,11 +221,19 @@ class SmartField(object):
         else:
             return True
 
-class SingleRelation(SmartField):
+class AbstractRelation(SmartField):
+
+    def find_class(self, context):
+        return Resolver(context).find_class(self._rel_col)
+
+    def find_entity_class(self, context):
+        return Resolver(context).find_entity_class(self._rel_col)
+
+class SingleRelation(AbstractRelation):
 
     def _transformer(self, for_instance):
         rfactory = lambda raw_value: Reference(lambda: for_instance._mark_as_forced(self.name), self._rel_col, raw_value)
-        EntityClass = Resolver(for_instance).find_entity_class(self._rel_col)
+        EntityClass = self.find_entity_class(for_instance) # TODO: here should be field owner context
         return self.Transform(for_instance, EntityClass, rfactory)
 
     class Transform(Typed):
@@ -268,7 +276,7 @@ class OneToOne(SingleRelation):
         self._rel_col = to_collection
         super(OneToOne, self).__init__(name=name, required=required, default=lambda: None, nullable=True)
 
-class OneToMany(SmartField):
+class OneToMany(AbstractRelation):
 
     class Transform(Typed):
 
@@ -295,11 +303,11 @@ class OneToMany(SmartField):
             return self
         value = instance._data.get(self.name)
         my_schema = instance.schema()
-        rs = Resolver(instance)
-        ColClass = rs.find_class(self._rel_col)
+        ColClass = self.find_class(owner)
         # TODO: improve performance
         for _, field in ColClass.Entity._iter_fields():
-            if isinstance(field, ForeignField) and field._back_to == self.name and rs.find_entity_class(field._rel_col) == owner:
+            # TODO: it's possible that find entity class uses wrong owner
+            if isinstance(field, ForeignField) and field._back_to == self.name and field.find_entity_class(owner) == owner:
                 return self._new_query(owner, ColClass, field.name, instance.id)
         raise ReferenceIssue, ('Backward field {0} is not found in the {1}'.format(self.name, ColClass),)
 

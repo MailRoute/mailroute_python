@@ -65,7 +65,7 @@ class CommonContactMixin(AbstractDocument):
     address2 = SmartField()
     city = SmartField()
     country = SmartField()
-    email = SmartField()
+    email = SmartField(required=True)
     first_name = SmartField()
     is_billing = SmartField()
     is_emergency = SmartField()
