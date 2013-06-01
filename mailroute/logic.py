@@ -47,7 +47,7 @@ class DomainMixin(object):
     def create_outbound_server(self, params_or_ip):
         if isinstance(params_or_ip, basestring):
             ip = params_or_ip
-            return self.outbound_servers.create(domain=self, {'server': ip})
+            return self.outbound_servers.create({'server': ip, 'domain': self})
         else:
             params = params_or_ip
             return self.mail_servers.create(domain=self, **params)
