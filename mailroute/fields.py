@@ -295,8 +295,8 @@ class OneToMany(AbstractRelation):
         self._rel_col = to_collection
         super(OneToMany, self).__init__(name=name, required=required)
 
-    def _new_query(self, owner, ColClass, field_name, iid):
-        return ColClass.filter(**{field_name: iid})
+    def _new_query(self, owner, ColClass, field_name, instance):
+        return ColClass.filter(**{field_name: instance.id})
 
     def __get__(self, instance, owner):
         if instance is None:
@@ -308,7 +308,7 @@ class OneToMany(AbstractRelation):
         for _, field in ColClass.Entity._iter_fields():
             # TODO: it's possible that find entity class uses wrong owner
             if isinstance(field, ForeignField) and field._back_to == self.name and field.find_entity_class(owner) == owner:
-                return self._new_query(owner, ColClass, field.name, instance.id)
+                return self._new_query(owner, ColClass, field.name, instance)
         raise ReferenceIssue, ('Backward field {0} is not found in the {1}'.format(self.name, ColClass),)
 
     def __set__(self, instance, value):
@@ -324,5 +324,5 @@ class OneToMany(AbstractRelation):
 
 class VirtualOneToMany(OneToMany):
 
-    def _new_query(self, owner, ColClass, field_name, iid):
-        return ColClass(owner.entity_name(), iid)
+    def _new_query(self, owner, ColClass, field_name, instance):
+        return ColClass(owner.entity_name(), instance.id)
