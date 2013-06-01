@@ -40,10 +40,15 @@ class Resolver(object):
 
     def find_class(self, class_or_name):
         if isinstance(class_or_name, basestring):
+            base_name = '.'.join(class_or_name.split('.')[:-1])
+            # TODO: we need some caching for module find
             try:
-                mod = importlib.import_module('.'.join(class_or_name.split('.')[:-1]))
+                mod = importlib.import_module(base_name)
             except:
-                mod = self._instance_module
+                try:
+                    mod = importlib.import_module('mailroute.{0}'.format(base_name))
+                except:
+                    mod = self._instance_module
             return getattr(mod, class_or_name.split('.')[-1])
         else:
             return class_or_name
