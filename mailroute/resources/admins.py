@@ -19,6 +19,6 @@ class Admins(VirtualQuerySet):
         send_welcome = SmartField()
         username = SmartField()
         reseller = ForeignField(to_collection='resources.reseller.Reseller', back_to='admins')
-        customer = ForeignField(to_collection='resources.reseller.Customer', back_to='admins')
+        customer = ForeignField(to_collection='resources.customer.Customer', back_to='admins')
 
     Entity = AdminsEntity
