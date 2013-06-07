@@ -25,6 +25,7 @@ class Domain(QuerySet):
         outbound_servers = OneToMany(to_collection='resources.outbound_server.OutboundServer')
         policy = OneToOne(to_collection='resources.policy.PolicyDomain')
         outbound_enabled = SmartField()
+        wblist = OneToMany(to_collection='resources.wblist.WBList')
 
     Entity = DomainEntity
 
@@ -59,8 +60,8 @@ class Domain(QuerySet):
     def create_alias(self, params):
         return self.domain_aliases.create(domain=self, **params)
 
-    def add_to_blacklist(self, email):
-        pass
+    def add_to_blacklist(self, address):
+        self.wblist.create(wb='b', mail_address=address, domain=self)
 
-    def add_to_whitelist(self, email):
-        pass
+    def add_to_whitelist(self, address):
+        self.wblist.create(wb='w', mail_address=address, domain=self)

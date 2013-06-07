@@ -31,6 +31,7 @@ class TestSchema(unittest.TestCase):
             mailroute.PolicyDomain,
             mailroute.PolicyUser,
             mailroute.Reseller,
+            mailroute.WBList,
         ]
 
     @httpretty.httprettified

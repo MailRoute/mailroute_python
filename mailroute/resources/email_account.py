@@ -22,8 +22,33 @@ class EmailAccount(QuerySet):
         policy = OneToOne(to_collection='resources.policy.PolicyUser')
         priority = SmartField()
         send_welcome = SmartField()
+        wblist = OneToMany(to_collection='resources.wblist.WBList')
 
     Entity = EmailAccountEntity
 
     def add_alias(local_part):
         self.localpart_aliases.create(email_account=self, local_part=local_part)
+
+    @classmethod
+    def create(cls, *args, **initial):
+        if len(args) == 1 and isinstance(args[0], basestring):
+            localpart, domain_name = args[0].split('@')
+            DomainClass = cls.Entity.domain.find_class(cls)
+            domain = DomainClass.get(name=domain_name)
+
+            return super(EmailAccount, cls).create(**{
+                'localpart': localpart,
+                'domain': domain,
+            })
+        else:
+            return super(EmailAccount, cls).create(**initial)
+
+    def add_to_blacklist(self, address):
+        self.wblist.create(wb='b', mail_address=address, email_account=self)
+
+    def add_to_whitelist(self, address):
+        self.wblist.create(wb='w', mail_address=address, email_account=self)
+
+    def set_password(self, new_pass):
+        self.password = new_pass
+        self.save()

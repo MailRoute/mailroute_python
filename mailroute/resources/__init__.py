@@ -12,8 +12,9 @@ from mail_server import *
 from notification_task import *
 from outbound_server import *
 from policy import *
+from wblist import *
 
 __all__ = ['Branding', 'Reseller', 'Admins', 'ContactCustomer', 'ContactDomain', 'ContactEmailAccount',
            'ContactReseller', 'Customer', 'Domain', 'DomainAlias', 'DomainWithAlias', 'EmailAccount',
            'LocalPartAlias', 'MailServer', 'NotificationAccountTask', 'NotificationDomainTask',
-           'OutboundServer', 'PolicyDomain', 'PolicyUser']
+           'OutboundServer', 'PolicyDomain', 'PolicyUser', 'WBList']
