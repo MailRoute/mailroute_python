@@ -24,10 +24,28 @@ class EmailAccount(QuerySet):
         send_welcome = SmartField()
         wblist = OneToMany(to_collection='resources.wblist.WBList')
 
-    Entity = EmailAccountEntity
+        def add_alias(local_part):
+            self.localpart_aliases.create(email_account=self, local_part=local_part)
 
-    def add_alias(local_part):
-        self.localpart_aliases.create(email_account=self, local_part=local_part)
+        def bulk_add_aliases(local_parts):
+            mass_add_callback = self._resource_point().sub('mass_add_aliases')
+            mass_add_aliases.create({'aliases': list(local_parts)})
+
+        def regenerate_api_key(self):
+            res = self._resource_point().sub('regenerate_api_key').create({})
+            return res['api_key']
+
+        def add_to_blacklist(self, address):
+            self.wblist.create(wb='b', mail_address=address, email_account=self)
+
+        def add_to_whitelist(self, address):
+            self.wblist.create(wb='w', mail_address=address, email_account=self)
+
+        def set_password(self, new_pass):
+            self.password = new_pass
+            self.save()
+
+    Entity = EmailAccountEntity
 
     @classmethod
     def create(cls, *args, **initial):
@@ -42,13 +60,3 @@ class EmailAccount(QuerySet):
             })
         else:
             return super(EmailAccount, cls).create(**initial)
-
-    def add_to_blacklist(self, address):
-        self.wblist.create(wb='b', mail_address=address, email_account=self)
-
-    def add_to_whitelist(self, address):
-        self.wblist.create(wb='w', mail_address=address, email_account=self)
-
-    def set_password(self, new_pass):
-        self.password = new_pass
-        self.save()
