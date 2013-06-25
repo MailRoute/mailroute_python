@@ -10,7 +10,7 @@ class NotificationAccountTask(QuerySet):
         class Meta:
             entity_name = 'notification_account_task'
 
-        email_account = OneToOne(to_collection='resources.email_account.EmailAccount')
+        email_account = ForeignField(to_collection='resources.email_account.EmailAccount', back_to='notification_tasks')
         enabled = SmartField()
         priority = SmartField()
 
@@ -21,7 +21,7 @@ class NotificationDomainTask(QuerySet):
         class Meta:
             entity_name = 'notification_domain_task'
 
-        domain = OneToOne(to_collection='resources.domain.Domain')
+        domain = ForeignField(to_collection='resources.domain.Domain', back_to='notification_tasks')
         enabled = SmartField()
         priority = SmartField()
 

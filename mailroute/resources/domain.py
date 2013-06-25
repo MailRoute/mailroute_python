@@ -20,7 +20,7 @@ class Domain(QuerySet):
         hold_email = SmartField()
         name = SmartField()
         mail_servers = OneToMany(to_collection='resources.mail_server.MailServer')
-        notification_task = OneToOne(to_collection='resources.notification_task.NotificationDomainTask')
+        notification_tasks = OneToMany(to_collection='resources.notification_task.NotificationDomainTask')
         outbound_enabled = SmartField()
         outbound_servers = OneToMany(to_collection='resources.outbound_server.OutboundServer')
         policy = OneToOne(to_collection='resources.policy.PolicyDomain')

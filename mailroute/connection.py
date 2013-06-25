@@ -83,6 +83,9 @@ class Resource(object):
         else:
             raise FinalResource, self.path
 
+    def call(self, method):
+        return Resource(urlparse.urljoin(self.path, '{0}/'.format(method)), auth=self._auth, final=self._final)
+
     def sub(self, *elements):
         if not self._final:
             elements = map(str, elements) + ['']
