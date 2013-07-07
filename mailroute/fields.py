@@ -141,7 +141,8 @@ class SmartField(object):
         store_datetime = datetime.datetime
         load_datetime = lambda self, v: dateutil.parser.parse(v)
 
-    def __init__(self, name=None, required=False, default=None, choices=None, nullable=False, readonly=False):
+    def __init__(self, name=None, required=False, default=None, choices=None, \
+                 nullable=False, readonly=False, validator=None):
         self.name = name
         self.required = required
         self.default = default
@@ -149,6 +150,7 @@ class SmartField(object):
         self.ignored = False
         self.nullable = nullable
         self.readonly = readonly
+        self.custom_validator = validator
 
     def _transformer(self, for_instance):
         return self.Transform(for_instance)
@@ -218,6 +220,8 @@ class SmartField(object):
             raise UnknownType, vtype
         if tsr.is_not_valid(vtype, value):
             raise InvalidValue, (value, vtype)
+        if self.custom_validator:
+            self.custom_validator(vtype, value)
 
     def is_actual_for(self, schema):
         options = schema['fields'].get(self.name, {})

@@ -18,17 +18,17 @@ class Reseller(QuerySet):
         customers = OneToMany(to_collection='resources.customer.Customer')
         admins = VirtualOneToMany(to_collection='resources.admins.Admins')
 
+        def create_admin(self, email, send_welcome):
+            return self.admins.create(email=email, send_welcome=send_welcome)
+
+        def delete_admin(self, email):
+            (admin_obj,) = self.admins.filter(email=email)
+            return admin_obj.delete()
+
+        def create_contact(self, params):
+            return self.contacts.create(reseller=self, **params)
+
+        def create_customer(self, params):
+            return self.customers.create(reseller=self, **params)
+
     Entity = ResellerEntity
-
-    def create_admin(self, email, send_welcome):
-        return self.admins.create(email=email, send_welcome=send_welcome)
-
-    def delete_admin(self, email):
-        (admin_obj,) = self.admins.filter(email=email)
-        return admin_obj.delete()
-
-    def create_contact(self, params):
-        return self.contacts.create(reseller=self, **params)
-
-    def create_customer(self, params):
-        return self.customers.create(reseller=self, **params)
