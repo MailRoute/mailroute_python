@@ -5,6 +5,8 @@ import uuid
 import unittest
 import mailroute
 import httpretty
+from mailroute.resources import contacts
+from mailroute import queryset
 
 class TestCustomMethods(unittest.TestCase):
 
@@ -20,16 +22,28 @@ class TestCustomMethods(unittest.TestCase):
         prefix = uuid.uuid4().hex
         new_name = '{0} Reseller'.format(prefix)
         res_obj = mailroute.Reseller.create(name=new_name)
-        res_obj.create_contact({
+        max_l = mailroute.ContactCustomer.Entity.MAX_NAME_LENGTH
+
+        too_long_prefix = prefix + ('.' * max(0, max_l - len(prefix) + 1))
+        res_obj.create_contact.when.called_with({
             'email': '{0}@test-mail.com'.format(prefix),
             'first_name': prefix
+        }).should.throw(contacts.TooLongError)
+
+        cprefix = prefix[:max_l]
+        res_obj.create_contact({
+            'email': '{0}@test-mail.com'.format(prefix),
+            'first_name': cprefix
         })
+
         (contact1,) = mailroute.ContactReseller.filter(email='{0}@test-mail.com'.format(prefix))
-        contact1.first_name.should.be.equal(prefix)
+        contact1.first_name.should.be.equal(cprefix)
         (contact2,) = res_obj.contacts
+
         contact1.should.be.equal(contact2)
 
-        len(res_obj.contacts.filter(first_name='Unknown')).should.be.equal(0)
+        len(res_obj.contacts.filter(email='{0}@Unknown'.format(prefix))).should.be.equal(0)
+        res_obj.contacts.filter.when.called_with(first_name='Unknown').should.throw(queryset.InvalidFilter)
         new_one.delete()
 
     def test_fresh_admins(self):
