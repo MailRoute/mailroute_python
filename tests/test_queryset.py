@@ -26,13 +26,11 @@ class TestQueries(unittest.TestCase):
 
         query = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).all()
         len(query.fetch()).should.be.equal(N)
-        resellers = query.limit(0)
-        len(resellers).should.be.equal(0)
         resellers = query.limit(1)
         len(resellers).should.be.equal(1)
         resellers = query.limit(N)
         len(resellers).should.be.equal(N)
-        resellers = query.limit(2 * N)
+        resellers = query.limit(2 * N) # there are no more items with such prefix
         len(resellers).should.be.equal(N)
 
         resellers = query.limit(1).limit(2)
@@ -91,7 +89,7 @@ class TestQueries(unittest.TestCase):
                                                  'offset': 0,
                                                  'previous': None,
                                                  'total_count': 0,
-                                                 }, 
+                                                 },
                                              'objects': []
                                              }),
                                          content_type='application/json')
@@ -101,16 +99,16 @@ class TestQueries(unittest.TestCase):
 
     def test_all(self):
         obj = {
-            "absolute_url": "/reseller/615/", 
-            "allow_branding": False, 
-            "allow_customer_branding": False, 
-            "branding_info": "/api/v1/brandinginfo/622/", 
-            "contacts": [], 
-            "created_at": "Fri, 22 Mar 2013 18:39:01 -0700", 
-            "customers": [], 
-            "id": 615, 
-            "name": "095eeef1d4204022a2a4e028de9ef2eb Reseller N0", 
-            "resource_uri": "/api/v1/reseller/615/", 
+            "absolute_url": "/reseller/615/",
+            "allow_branding": False,
+            "allow_customer_branding": False,
+            "branding_info": "/api/v1/brandinginfo/622/",
+            "contacts": [],
+            "created_at": "Fri, 22 Mar 2013 18:39:01 -0700",
+            "customers": [],
+            "id": 615,
+            "name": "095eeef1d4204022a2a4e028de9ef2eb Reseller N0",
+            "resource_uri": "/api/v1/reseller/615/",
             "updated_at": "Fri, 22 Mar 2013 18:39:01 -0700"
         }
 
@@ -125,7 +123,7 @@ class TestQueries(unittest.TestCase):
                                                  'offset': 0,
                                                  'previous': None,
                                                  'total_count': PAGE * 3,
-                                            }, 
+                                            },
                                             'objects': [obj] * PAGE
                                         }),
                                         content_type='application/json')
