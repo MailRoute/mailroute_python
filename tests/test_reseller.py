@@ -44,7 +44,7 @@ class TestCustomMethods(unittest.TestCase):
 
         len(res_obj.contacts.filter(email='{0}@Unknown'.format(prefix))).should.be.equal(0)
         res_obj.contacts.filter.when.called_with(first_name='Unknown').should.throw(queryset.InvalidFilter)
-        new_one.delete()
+        res_obj.delete()
 
     def test_fresh_admins(self):
         prefix = uuid.uuid4().hex

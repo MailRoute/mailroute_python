@@ -74,7 +74,7 @@ class TestQueries(unittest.TestCase):
         resellers[0].name.should.be.equal('{0} Reseller A N0'.format(prefix))
 
         mailroute.Reseller.filter.when.called_with(branding_info__color='red').should. \
-                                    throw('InvalidFilter')
+                                    throw(mailroute.InvalidFilter)
 
         for reseller in mailroute.Reseller.filter(name__startswith='{0}'.format(prefix)):
             reseller.delete()
@@ -251,15 +251,14 @@ class TestQueries(unittest.TestCase):
         resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).order_by('-name')
         list(resellers).should.be.equal(sorted(resellers, key=lambda obj: obj.name, reverse=True))
 
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).order_by('-name', 'created_at')
-        list(resellers).should.be.equal(sorted(resellers, cmp=lambda obj1, obj2: \
-                                               -cmp(obj1.name, obj2.name) or cmp(obj1.created_at, obj2.created_at)))
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).order_by('created_at')
+        list(resellers).should.be.equal(sorted(resellers, cmp=lambda obj1, obj2: cmp(obj1.created_at, obj2.created_at)))
 
         mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)). \
                                                         order_by.when.called_with('some_wrong_field'). \
                                                         should.throw(mailroute.InvalidOrder)
 
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).order_by('todo__todo')
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix))
 
         for reseller in resellers:
             reseller.delete()
