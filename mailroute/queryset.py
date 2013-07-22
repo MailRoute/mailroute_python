@@ -30,6 +30,11 @@ class QuerySet(object):
         self._filters = filters
         self._cached = None
 
+        def all():
+            return self.__class__(filters=self._filters)
+        self.all = all
+
+
     @classmethod
     def _make_instance(cls, *args, **kwargs):
         return cls.Entity(*args, **kwargs)
@@ -95,7 +100,10 @@ class QuerySet(object):
     # DON'T MAKE THIS METHODS (limit & offset) as classmethods
     def limit(self, num):
         f = dict(self._filters)
-        f['limit'] = num
+        if 'limit' in f:
+            f['limit'] = min(f['limit'], num)
+        else:
+            f['limit'] = num
         return self.__class__(filters=f)
 
     def offset(self, num):
@@ -120,14 +128,20 @@ class QuerySet(object):
 
     def __len__(self):
         if self._cached is not None:
-            return int(self._cached['meta']['total_count'])
+            if 'limit' not in self._filters:
+                return int(self._cached['meta']['total_count'])
+            else:
+                return len(self._cached['objects'])
         else:
             lazy_fetch = iter(self)
             try:
                 lazy_fetch.next()
             except StopIteration:
                 pass
-            return int(self._cached['meta']['total_count'])
+            if 'limit' not in self._filters:
+                return int(self._cached['meta']['total_count'])
+            else:
+                return len(self._cached['objects'])
 
     def __getitem__(self, ind):
         if isinstance(ind, slice):
