@@ -131,6 +131,16 @@ class BaseDocument(AbstractDocument):
         return c.schema_for(cls.entity_name())['schema']
 
     @classmethod
+    def allowed_to_sort_by(cls, field_name):
+        schema = cls.schema()
+        return field_name in schema['ordering']
+
+    @classmethod
+    def allowed_to_filter_by(cls, field_name):
+        schema = cls.schema()
+        return field_name in schema['filtering']
+
+    @classmethod
     def is_actual(cls):
         my_schema = cls.schema()
         ignored = getattr(cls.Meta, 'ignored', [])

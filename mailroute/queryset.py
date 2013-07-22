@@ -73,6 +73,10 @@ class QuerySet(object):
 
     @classmethod
     def filter(cls, **options):
+        for field_rule in options:
+            field_name = field_rule.split('__')[0]
+            if not cls.Entity.allowed_to_filter_by(field_name):
+                raise InvalidFilter, field_name
         return cls(filters=options)
 
     @classmethod
@@ -86,7 +90,7 @@ class QuerySet(object):
             if isinstance(entity, (basestring, int)):
                 oid = str(entity)
                 try:
-                    self._resource_point().one(oid).delete()
+                    cls._resource_point().one(oid).delete()
                 except connection.NotFound, e:
                     issues.append((oid, e))
             else:
@@ -113,9 +117,15 @@ class QuerySet(object):
 
     def order_by(self, rule):
         f = dict(self._filters)
-        f['order_by'] = rule
-        # TODO: check allowed fields for ordering
-        return self.__class__(filters=f)
+        if rule.startswith('-'):
+            field_name = rule[1:]
+        else:
+            field_name = rule
+        if self.Entity.allowed_to_sort_by(field_name):
+            f['order_by'] = rule
+            return self.__class__(filters=f)
+        else:
+            raise InvalidOrder, (rule,)
 
     def fetch(self):
         return list(self)
