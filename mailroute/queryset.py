@@ -26,6 +26,8 @@ class NotUniqueError(OperationError):
 
 class QueryResource(object):
 
+    COMMANDS = set(['limit', 'offset', 'order_by', 'q'])
+
     def __init__(self, Entity):
         self.Entity = Entity
 
@@ -47,7 +49,8 @@ class QueryResource(object):
         return c.objects(self.entity_name())
 
     def allowed_to_filter_by(self, field_name):
-        return self.Entity.allowed_to_filter_by(field_name)
+        return field_name in self.COMMANDS or \
+            self.Entity.allowed_to_filter_by(field_name)
 
     def allowed_to_sort_by(self, field_name):
         return self.Entity.allowed_to_sort_by(field_name)
