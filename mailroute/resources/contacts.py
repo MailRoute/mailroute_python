@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from mailroute.queryset import QuerySet, VirtualQuerySet
 from mailroute.document import BaseDocument, AbstractDocument, BaseCreatableDocument, VirtualDocument
-from mailroute.fields import SmartField, OneToMany, OneToOne, ForeignField, VirtualOneToMany, InvalidValue
+from mailroute.fields import SmartField, OneToMany, OneToOne, ForeignField, InvalidValue
 
 __all__ = ['CommonContactMixin', 'ContactCustomer', 'ContactDomain', 'ContactEmailAccount', 'ContactReseller',]
 

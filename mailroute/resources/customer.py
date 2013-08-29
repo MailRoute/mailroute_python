@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from mailroute.queryset import QuerySet, VirtualQuerySet
 from mailroute.document import BaseDocument, AbstractDocument, BaseCreatableDocument, VirtualDocument
-from mailroute.fields import SmartField, OneToMany, OneToOne, ForeignField, VirtualOneToMany
+from mailroute.fields import SmartField, OneToMany, OneToOne, ForeignField
 
 __all__ = ['Customer',]
 
@@ -18,7 +18,7 @@ class Customer(QuerySet):
         reseller = ForeignField(to_collection='resources.reseller.Reseller', back_to='customers')
         contacts = OneToMany(to_collection='resources.contacts.ContactCustomer')
         domains = OneToMany(to_collection='resources.domain.Domain')
-        admins = VirtualOneToMany(to_collection='resources.admins.Admins')
+        admins = OneToMany(to_collection='resources.admins.Admins')
 
     Entity = CustomerEntity
 

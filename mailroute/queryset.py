@@ -24,41 +24,52 @@ class NotUniqueError(OperationError):
     pass
 
 
-class QuerySet(object):
+class QueryResource(object):
 
-    def __init__(self, filters={}):
-        self._filters = filters
-        self._cached = None
+    def __init__(self, Entity):
+        self.Entity = Entity
 
-        def all():
-            return self.__class__(filters=self._filters)
-        self.all = all
+    def make_instance(self, *args, **kwargs):
+        return self.Entity(*args, **kwargs)
 
+    def new_instance(self, initial, (args, kwargs)):
+        o = self.make_instance(*args, **kwargs)
+        # because we really want to mark fields to be changed in this case
+        for pname, value in initial.iteritems():
+            setattr(o, pname, value)
+        return o
 
-    @classmethod
-    def _make_instance(cls, *args, **kwargs):
-        return cls.Entity(*args, **kwargs)
+    def entity_name(self):
+        return self.Entity.entity_name()
 
-    @classmethod
-    def entity_name(cls):
-        return cls.Entity.entity_name()
-
-    @classmethod
-    def _resource_point(cls):
+    def point(self):
         c = connection.get_default_connection()
-        return c.objects(cls.entity_name())
+        return c.objects(self.entity_name())
+
+    def allowed_to_filter_by(self, field_name):
+        return self.Entity.allowed_to_filter_by(field_name)
+
+    def allowed_to_sort_by(self, field_name):
+        return self.Entity.allowed_to_sort_by(field_name)
+
+class QuerySet(object):
+    '''
+    It's a base class for entire collections operations.
+    '''
+
+    _virtual = False
+    ResourceClass = QueryResource
 
     @classmethod
     def get(cls, id):
-        o = cls._make_instance(pre_filled=cls._resource_point().one(id).get())
+        res = cls.ResourceClass(cls.Entity)
+        o = res.make_instance(pre_filled=res.point().one(id).get())
         return o
 
     @classmethod
     def create(cls, **initial):
-        o = cls._make_instance()
-        # because we really want to mark fields to be changed in this case
-        for pname, value in initial.iteritems():
-            setattr(o, pname, value)
+        res = cls.ResourceClass(cls.Entity)
+        o = res.new_instance(initial, ((), {}))
         o.save()
         return o
 
@@ -69,28 +80,26 @@ class QuerySet(object):
 
     @classmethod
     def all(cls):
-        return cls()
+        return FilteredSubSet(cls.ResourceClass(cls.Entity))
 
     @classmethod
     def filter(cls, **options):
-        for field_rule in options:
-            field_name = field_rule.split('__')[0]
-            if not cls.Entity.allowed_to_filter_by(field_name):
-                raise InvalidFilter, field_name
-        return cls(filters=options)
+        res = cls.ResourceClass(cls.Entity)
+        return FilteredSubSet(res, filters=options)
 
     @classmethod
     def search(cls, pattern):
-        return cls(filters=dict(q=pattern))
+        return FilteredSubSet(cls.ResourceClass(cls.Entity), filters=dict(q=pattern))
 
     @classmethod
     def delete(cls, resources):
         issues = []
+        res = cls.ResourceClass(cls.Entity)
         for entity in resources:
             if isinstance(entity, (basestring, int)):
                 oid = str(entity)
                 try:
-                    cls._resource_point().one(oid).delete()
+                    res.point().one(oid).delete()
                 except connection.NotFound, e:
                     issues.append((oid, e))
             else:
@@ -101,19 +110,51 @@ class QuerySet(object):
         if issues:
             raise DeleteError, (issues,)
 
-    # DON'T MAKE THIS METHODS (limit & offset) as classmethods
+class FilteredSubSet(object):
+
+    _virtual = False
+
+    def __init__(self, resource, filters={}):
+        self._res = resource
+
+        for field_rule in filters:
+            field_name = field_rule.split('__')[0]
+            if not self._res.allowed_to_filter_by(field_name):
+                raise InvalidFilter, field_name
+
+        self._filters = filters
+        self._cached = None
+
+    def create(self, **initial):
+        o = self._res.new_instance(initial, ((), {}))
+        o.save()
+        return o
+
+    def filter(self, **options):
+        instance_filter = dict(options)
+        instance_filter.update(self._filters)
+        return self.__class__(self._res, filters=instance_filter)
+
+    def search(self, pattern):
+        entire_filter = dict(q=pattern)
+        entire_filter.update(self._filters)
+        return self.__class__(self._res, filters=entire_filter)
+
+    def all(self):
+        return self.__class__(self._res, filters=self._filters)
+
     def limit(self, num):
         f = dict(self._filters)
         if 'limit' in f:
             f['limit'] = min(f['limit'], num)
         else:
             f['limit'] = num
-        return self.__class__(filters=f)
+        return self.__class__(self._res, filters=f)
 
     def offset(self, num):
         f = dict(self._filters)
         f['offset'] = num
-        return self.__class__(filters=f)
+        return self.__class__(self._res, filters=f)
 
     def order_by(self, rule):
         f = dict(self._filters)
@@ -121,9 +162,9 @@ class QuerySet(object):
             field_name = rule[1:]
         else:
             field_name = rule
-        if self.Entity.allowed_to_sort_by(field_name):
+        if self._res.allowed_to_sort_by(field_name):
             f['order_by'] = rule
-            return self.__class__(filters=f)
+            return self.__class__(self._res, filters=f)
         else:
             raise InvalidOrder, (rule,)
 
@@ -167,7 +208,7 @@ class QuerySet(object):
         else:
             self._cache_until(ind)
             info = self._cached['objects'][ind]
-            o = self._make_instance(pre_filled=info)
+            o = self._res.make_instance(pre_filled=info)
             return o
 
     def _cache_until(self, ind):
@@ -182,13 +223,14 @@ class QuerySet(object):
     def __iter__(self):
         c = connection.get_default_connection()
         if self._cached is None:
-            self._cached = ans = self._resource_point().get(**self._filters)
+            res = self._res.point()
+            self._cached = ans = res.get(**self._filters)
         else:
             ans = self._cached
 
         while True:
             for info in ans['objects']:
-                o = self._make_instance(pre_filled=info)
+                o = self._res.make_instance(pre_filled=info)
                 yield o
 
             if not self._cached['meta']['next']:
@@ -200,27 +242,24 @@ class QuerySet(object):
             self._cached['meta'] = ans['meta']
             self._cached['objects'].extend(ans['objects'])
 
-class VirtualQuerySet(QuerySet):
+class VirtualQueryResource(QueryResource):
+
+    def __init__(self, Entity, linked_to):
+        super(VirtualQueryResource, self).__init__(Entity)
+        self._lnk_ename, self._main_id = linked_to
+
+    def make_instance(self, *args, **kwargs):
+        return super(VirtualQueryResource, self). \
+            make_instance(self._lnk_ename, self._main_id, *args, **kwargs)
+
+    def point(self):
+        return super(VirtualQueryResource, self).point() \
+                                                .sub(self._lnk_ename, self._main_id)
+
+class VirtualQuerySet(FilteredSubSet):
+
+    _virtual = True
 
     def __init__(self, linked_entity_name, main_id, **kwargs):
-        super(VirtualQuerySet, self).__init__(**kwargs)
-        self._lnk_ename = linked_entity_name
-        self._main_id = main_id
-
-    # TODO: HACK! remove this or rework
-    def create(self, **initial):
-        o = self._make_instance()
-        for pname, value in initial.iteritems():
-            setattr(o, pname, value)
-        o.save()
-        return o
-
-    # WARNING: HACKS below
-    # TODO: parent has classmethod, but here we specify object method
-    def _resource_point(self):
-        c = connection.get_default_connection()
-        return c.objects(self.entity_name()).sub(self._lnk_ename, self._main_id)
-
-    # TODO: parent has class method!
-    def _make_instance(self, *args, **kwargs):
-        return self.Entity(self._lnk_ename, self._main_id, *args, **kwargs)
+        res = VirtualQueryResource(self.Entity, (linked_entity_name, main_id))
+        super(VirtualQuerySet, self).__init__(res, **kwargs)

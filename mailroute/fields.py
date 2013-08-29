@@ -177,7 +177,7 @@ class SmartField(object):
 
         if isinstance(value, Reference):
             value = value.dereference(linker=Resolver(instance))
-            
+
         if value is None:
             if not self.has_nullable(instance):
                 if self.default is None:
@@ -305,7 +305,10 @@ class OneToMany(AbstractRelation):
         super(OneToMany, self).__init__(name=name, required=required)
 
     def _new_query(self, owner, ColClass, field_name, instance):
-        return ColClass.filter(**{field_name: instance.id})
+        if ColClass._virtual:
+            return ColClass(owner.entity_name(), instance.id)
+        else:
+            return ColClass().filter(**{field_name: instance.id})
 
     def __get__(self, instance, owner):
         if instance is None:
@@ -330,8 +333,3 @@ class OneToMany(AbstractRelation):
     def convert(self, instance, raw_value):
         # ignore any loaded values from object for one -> many relation
         return []
-
-class VirtualOneToMany(OneToMany):
-
-    def _new_query(self, owner, ColClass, field_name, instance):
-        return ColClass(owner.entity_name(), instance.id)
