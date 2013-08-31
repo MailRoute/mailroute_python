@@ -4,10 +4,9 @@ import json
 import unittest
 import mailroute
 import httpretty
+from tests import base
 
-class TestSchema(unittest.TestCase):
-
-    ACCESS_USER = ('test_python', 'e7b46a7392629c144ee8237454b7888a30f93e69')
+class TestSchema(base.Test):
 
     @property
     def entity_classes(self):
