@@ -61,3 +61,12 @@ class TestCustomMethods(base.AccessTest):
         found_admin.should.be.equal(new_admin)
 
         res_obj.delete_admin(ad_mail)
+
+    def test_branding(self):
+        new_one = mailroute.Reseller.create(name=new_name)
+
+        new_one.branding_info.should.be.a(mailroute.Branding.BrandingEntity)
+        new_one.branding_info.reseller.should.be.equal(new_one)
+
+        mailroute.Reseller.filter.when.called_with(branding_info__color='red').should. \
+            throw(mailroute.InvalidFilter)

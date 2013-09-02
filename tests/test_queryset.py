@@ -66,9 +66,6 @@ class TestQueries(base.AccessTest):
         len(resellers).should.be.equal(1)
         resellers[0].name.should.be.equal('{0} Reseller A N0'.format(prefix))
 
-        mailroute.Reseller.filter.when.called_with(branding_info__color='red').should. \
-                                    throw(mailroute.InvalidFilter)
-
         for reseller in mailroute.Reseller.filter(name__startswith='{0}'.format(prefix)):
             reseller.delete()
 
@@ -209,8 +206,6 @@ class TestQueries(base.AccessTest):
         resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
         len(resellers).should.be.equal(N)
 
-        resellers[0].branding_info.should.be.a(mailroute.Branding.BrandingEntity)
-        resellers[0].branding_info.reseller.should.be.equal(resellers[0])
         for reseller in resellers:
             reseller.delete()
 
