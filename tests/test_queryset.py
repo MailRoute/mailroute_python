@@ -5,73 +5,116 @@ import uuid
 import unittest
 import mailroute
 import httpretty
+import contextlib
 from tests import base
+
+class Resource(object):
+    def __init__(self, RClass, use_prefix=None):
+        self._RClass = RClass
+        if use_prefix is None:
+            self._uniq = uuid.uuid4().hex
+        else:
+            self._uniq = use_prefix
+
+    @property
+    def address(self):
+        return 'https://ci.mailroute.net/api/v1/reseller/'.format(self._RClass.Entity.entity_name())
+
+    def generate(self, N, suffix='A'):
+        objs = []
+        names = []
+        for i in xrange(N):
+            new_name = '{1} {resname} {2} N{0}'.format(i, self._uniq, suffix,
+                                                       resname=self._RClass.__name__)
+            new_one = mailroute.Reseller.create(name=new_name)
+            names.append(new_name)
+            objs.append(new_one)
+        return objs, names
+
+    def name(self, suffix='A'):
+        return '{0} {resname} {1}'.format(self._uniq, suffix,
+                                          resname=self._RClass.__name__)
+
+    @contextlib.contextmanager
+    def named(self, *args, **kwargs):
+        objs, names = self.generate(*args, **kwargs)
+        yield objs, names
+
+        for reseller in objs:
+            try:
+                reseller.delete()
+            except:
+                pass
+
+    @contextlib.contextmanager
+    def wrapper(self, *args, **kwargs):
+        with self.named(*args, **kwargs) as (objs, names):
+            yield objs
+
+    def filter_prefixed(self, tail=''):
+        if tail:
+            tail = ' ' + tail
+        query = mailroute.Reseller.filter(name__startswith='{0} {resname}{tail}'. \
+            format(self._uniq, resname=self._RClass.__name__, tail=tail)).all()
+        return query
+
+    def field(self, obj):
+        return obj.name
 
 class TestQueries(base.AccessTest):
 
     def test_limits(self):
         N = 15
-        prefix = uuid.uuid4().hex
+        res = Resource(mailroute.Reseller)
 
-        for i in xrange(N):
-            new_name = '{1} Reseller A N{0}'.format(i, prefix)
-            new_one = mailroute.Reseller.create(name=new_name)
+        with res.wrapper(N):
+            query = res.filter_prefixed().all()
+            len(query.fetch()).should.be.equal(N)
+            resellers = query.limit(1)
+            len(resellers).should.be.equal(1)
+            resellers = query.limit(N)
+            len(resellers).should.be.equal(N)
+            resellers = query.limit(2 * N) # there are no more items with such prefix
+            len(resellers).should.be.equal(N)
 
-        query = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).all()
-        len(query.fetch()).should.be.equal(N)
-        resellers = query.limit(1)
-        len(resellers).should.be.equal(1)
-        resellers = query.limit(N)
-        len(resellers).should.be.equal(N)
-        resellers = query.limit(2 * N) # there are no more items with such prefix
-        len(resellers).should.be.equal(N)
-
-        resellers = query.limit(1).limit(2)
-        len(resellers).should.be.equal(1)
-        resellers = query.limit(1).offset(1)
-        len(resellers).should.be.equal(1)
-        resellers = query.limit(1).offset(N)
-        len(resellers).should.be.equal(0)
-        resellers = query.limit(1).offset(N - 1)
-        len(resellers).should.be.equal(1)
-
-        for reseller in query:
-            reseller.delete()
+            resellers = query.limit(1).limit(2)
+            len(resellers).should.be.equal(1)
+            resellers = query.limit(1).offset(1)
+            len(resellers).should.be.equal(1)
+            resellers = query.limit(1).offset(N)
+            len(resellers).should.be.equal(0)
+            resellers = query.limit(1).offset(N - 1)
+            len(resellers).should.be.equal(1)
 
     def test_filter(self):
         N = 15
-        prefix = uuid.uuid4().hex
 
-        for i in xrange(N):
-            new_name = '{1} Reseller A N{0}'.format(i, prefix)
-            new_one = mailroute.Reseller.create(name=new_name)
-            new_name = '{1} Reseller B N{0}'.format(i, prefix)
-            new_one = mailroute.Reseller.create(name=new_name)
+        res = Resource(mailroute.Reseller)
 
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix))
-        len(resellers).should.be.equal(2 * N)
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller A'.format(prefix))
-        len(resellers).should.be.equal(N)
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller B'.format(prefix))
-        len(resellers).should.be.equal(N)
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller B'.format(prefix)).limit(3)
-        len(resellers).should.be.equal(3)
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller B'.format(prefix)).limit(3).offset(2)
-        len(resellers).should.be.equal(3)
+        with res.wrapper(N, suffix='A'):
+            with res.wrapper(N, suffix='B'):
+                resellers = res.filter_prefixed()
+                len(resellers).should.be.equal(2 * N)
+                resellers = res.filter_prefixed(tail='A')
+                len(resellers).should.be.equal(N)
+                resellers = res.filter_prefixed(tail='B')
+                len(resellers).should.be.equal(N)
+                resellers = res.filter_prefixed(tail='B').limit(3)
+                len(resellers).should.be.equal(3)
+                resellers = res.filter_prefixed(tail='B').limit(3).offset(2)
+                len(resellers).should.be.equal(3)
 
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Nothing'.format(prefix))
-        resellers.should.be.empty
+                resellers = res.filter_prefixed(tail='Nothing')
+                resellers.should.be.empty
 
-        resellers = mailroute.Reseller.filter(name='{0} Reseller A N0'.format(prefix))
-        len(resellers).should.be.equal(1)
-        resellers[0].name.should.be.equal('{0} Reseller A N0'.format(prefix))
-
-        for reseller in mailroute.Reseller.filter(name__startswith='{0}'.format(prefix)):
-            reseller.delete()
+                resellers = res.filter_prefixed(tail='A N0')
+                len(resellers).should.be.equal(1)
+                res.field(resellers[0]).should.be.equal(res.name(suffix='A N0'))
 
     @httpretty.httprettified
     def test_all_empty(self):
-        httpretty.HTTPretty.register_uri(httpretty.HTTPretty.GET, 'https://ci.mailroute.net/api/v1/reseller/',
+        res = Resource(mailroute.Reseller)
+        httpretty.HTTPretty.register_uri(httpretty.HTTPretty.GET, res.address,
                                          status=200, body=json.dumps({
                                              'meta': {
                                                  'limit': 20,
@@ -88,168 +131,114 @@ class TestQueries(base.AccessTest):
         query.fetch().should.be.empty
 
     def test_all(self):
-        obj = {
-            "absolute_url": "/reseller/615/",
-            "allow_branding": False,
-            "allow_customer_branding": False,
-            "branding_info": "/api/v1/brandinginfo/622/",
-            "contacts": [],
-            "created_at": "Fri, 22 Mar 2013 18:39:01 -0700",
-            "customers": [],
-            "id": 615,
-            "name": "095eeef1d4204022a2a4e028de9ef2eb Reseller N0",
-            "resource_uri": "/api/v1/reseller/615/",
-            "updated_at": "Fri, 22 Mar 2013 18:39:01 -0700"
-        }
+        ename = mailroute.Reseller.Entity.entity_name()
+        with open('tests/data/all/{0}.json'.format(ename)) as f:
+            answer = json.loads(f.read())
 
-        query = mailroute.Reseller.Entity.is_actual() # force to load schema
-        httpretty.HTTPretty.enable()
-        PAGE = 20
-        httpretty.HTTPretty.register_uri(httpretty.HTTPretty.GET, 'https://ci.mailroute.net/api/v1/reseller/',
-                                         status=200, body=json.dumps({
-                                            'meta': {
-                                                 'limit': PAGE,
-                                                 'next': '/api/v1/reseller/?limit=20&offset=20',
-                                                 'offset': 0,
-                                                 'previous': None,
-                                                 'total_count': PAGE * 3,
-                                            },
-                                            'objects': [obj] * PAGE
-                                        }),
-                                        content_type='application/json')
-        query = mailroute.Reseller.all()
-        len(query).should.be.equal(PAGE * 3)
-        httpretty.HTTPretty.disable()
+            query = mailroute.Reseller.Entity.is_actual() # force to load schema
+            httpretty.HTTPretty.enable()
+            address = 'https://ci.mailroute.net/api/v1/{0}/'.format(ename)
+            httpretty.HTTPretty.register_uri(httpretty.HTTPretty.GET, address,
+                                             status=200, body=json.dumps(answer),
+                                             content_type='application/json')
+            query = mailroute.Reseller.all()
+            len(query).should.be.equal(answer['meta']['total_count'])
+            httpretty.HTTPretty.disable()
 
     def test_get(self):
-        resellers = mailroute.Reseller.filter(name__startswith='Testing').limit(20)
-        if not resellers:
-            mailroute.Reseller.create(name='Testing reseller')
-            resellers = mailroute.Reseller.filter(name__startswith='Testing').limit(20)
+        res = Resource(mailroute.Reseller)
 
-        resellers.should_not.be.empty
-        resellers.should.have.property('__iter__')
+        with res.wrapper(1):
+            resellers = res.filter_prefixed().limit(20)
 
-        for person in resellers[:10]:
-            person.should.have.property('id')
-            pk = person.id
-            same_entity = mailroute.Reseller.get(id=pk)
-            same_entity.should.be.equal(person)
+            resellers.should_not.be.empty
+            resellers.should.have.property('__iter__')
+
+            for person in resellers[:10]:
+                person.should.have.property('id')
+                pk = person.id
+                same_entity = mailroute.Reseller.get(id=pk)
+                same_entity.should.be.equal(person)
 
     def test_delete(self):
-        prefix = uuid.uuid4().hex
+        res = Resource(mailroute.Reseller)
 
-        person = mailroute.Reseller.create(name='{0} Reseller'.format(prefix))
+        with res.wrapper(1):
+            resellers = res.filter_prefixed()
+            resellers.should_not.be.empty
 
-        resellers = mailroute.Reseller.filter(name='{0} Reseller'.format(prefix))
-        resellers.should_not.be.empty
+            (person,) = resellers
+            old_id = person.id
+            person.delete().should.be.ok
+            person.id.should.be.none
+            person.delete().should_not.be.ok
+            person.id.should.be.none
+            # try to double delete it again
+            mailroute.Reseller.delete.when.called_with([old_id]).should.throw(mailroute.DeleteError)
 
-        (person,) = resellers
-        old_id = person.id
-        person.delete().should.be.ok
-        person.id.should.be.none
-        person.delete().should_not.be.ok
-        person.id.should.be.none
-        # try to double delete it again
-        mailroute.Reseller.delete.when.called_with([old_id]).should.throw(mailroute.DeleteError)
-
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix))
-        resellers.should.be.empty
-        another_prefix = uuid.uuid4().hex
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(another_prefix))
-        resellers.should.be.empty
+            resellers = res.filter_prefixed()
+            resellers.should.be.empty
+            another_prefix = uuid.uuid4().hex
+            res_another = Resource(mailroute.Reseller, use_prefix=another_prefix)
+            resellers = res_another.filter_prefixed()
+            resellers.should.be.empty
 
     def test_mass_deletion_by_instance(self):
         N = 5
-        prefix = uuid.uuid4().hex
+        res = Resource(mailroute.Reseller)
 
-        for i in xrange(N):
-            new_name = '{1} Reseller N{0}'.format(i, prefix)
-            new_one = mailroute.Reseller.create(name=new_name)
+        with res.wrapper(N):
+            resellers = res.filter_prefixed()
+            len(resellers).should.be.equal(N)
 
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
-        len(resellers).should.be.equal(N)
+            mailroute.Reseller.delete(resellers)
 
-        mailroute.Reseller.delete(resellers)
-
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
-        resellers.should.be.empty
+            resellers = res.filter_prefixed()
+            resellers.should.be.empty
 
     def test_mass_deletion_by_pk(self):
         N = 5
-        prefix = uuid.uuid4().hex
+        res = Resource(mailroute.Reseller)
 
-        for i in xrange(N):
-            new_name = '{1} Reseller N{0}'.format(i, prefix)
-            new_one = mailroute.Reseller.create(name=new_name)
+        with res.wrapper(N):
+            resellers = res.filter_prefixed()
+            len(resellers).should.be.equal(N)
 
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
-        len(resellers).should.be.equal(N)
+            mailroute.Reseller.delete([obj.id for obj in resellers])
 
-        mailroute.Reseller.delete([obj.id for obj in resellers])
-
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
-        resellers.should.be.empty
+            resellers = res.filter_prefixed()
+            resellers.should.be.empty
 
     def test_create(self):
         N = 3
-        prefix = uuid.uuid4().hex
+        res = Resource(mailroute.Reseller)
 
-        for i in xrange(N):
-            new_name = '{1} Reseller N{0}'.format(i, prefix)
-
-            new_one = mailroute.Reseller.create(name=new_name)
-            new_one.should.be.a(mailroute.Reseller.ResellerEntity)
-            new_one.name.should.be.equal(new_name)
-            new_one.should.be.equal(new_one)
-            new_one.should.be.equal(mailroute.Reseller.get(id=new_one.id))
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
-        len(resellers).should.be.equal(N)
-
-        for reseller in resellers:
-            reseller.delete()
-
-    def test_mass_create(self):
-        N = 5
-        prefix = uuid.uuid4().hex
-
-        new_names = []
-        for i in xrange(N):
-            new_names.append('{1} Reseller N{0}'.format(i, prefix))
-
-        mailroute.Reseller.bulk_create([{'name': name} for name in new_names])
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
-        len(resellers).should.be.equal(N)
-        set(obj.name for obj in resellers.fetch()).should.be.equal(set(new_names))
+        with res.named(N) as (resellers, names):
+            for new_name, new_one in zip(names, resellers):
+                new_one.should.be.a(mailroute.Reseller.Entity)
+                res.field(new_one).should.be.equal(new_name)
+                new_one.should.be.equal(new_one)
+                new_one.should.be.equal(mailroute.Reseller.get(id=new_one.id))
+            resellers = res.filter_prefixed()
+            len(resellers).should.be.equal(N)
 
     def test_sorting(self):
         N = 15
-        prefix = uuid.uuid4().hex
+        res = Resource(mailroute.Reseller)
 
-        for i in xrange(N):
-            new_name = '{1} Reseller A N{0}'.format(i, prefix)
-            new_one = mailroute.Reseller.create(name=new_name)
+        with res.wrapper(N, suffix='A'):
+            with res.wrapper(N, suffix='B'):
+                resellers = res.filter_prefixed().order_by('name')
+                list(resellers).should.be.equal(sorted(resellers, key=lambda obj: res.field(obj)))
 
-            new_name = '{1} Reseller B N{0}'.format(N - i, prefix)
-            new_one = mailroute.Reseller.create(name=new_name)
+                resellers = res.filter_prefixed().order_by('-name')
+                list(resellers).should.be.equal(sorted(resellers, key=lambda obj: res.field(obj), reverse=True))
 
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).order_by('name')
-        list(resellers).should.be.equal(sorted(resellers, key=lambda obj: obj.name))
+                resellers = res.filter_prefixed().order_by('created_at')
+                list(resellers).should.be.equal(sorted(resellers, cmp=lambda obj1, obj2: cmp(obj1.created_at, obj2.created_at)))
 
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).order_by('-name')
-        list(resellers).should.be.equal(sorted(resellers, key=lambda obj: obj.name, reverse=True))
-
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)).order_by('created_at')
-        list(resellers).should.be.equal(sorted(resellers, cmp=lambda obj1, obj2: cmp(obj1.created_at, obj2.created_at)))
-
-        mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix)). \
-                                                        order_by.when.called_with('some_wrong_field'). \
-                                                        should.throw(mailroute.InvalidOrder)
-
-        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller'.format(prefix))
-
-        for reseller in resellers:
-            reseller.delete()
+                res.filter_prefixed().order_by.when.called_with('some_wrong_field'). \
+                    should.throw(mailroute.InvalidOrder)
 
 
 if __name__ == '__main__':

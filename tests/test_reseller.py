@@ -62,7 +62,21 @@ class TestCustomMethods(base.AccessTest):
 
         res_obj.delete_admin(ad_mail)
 
+    def test_mass_create(self):
+        N = 5
+        prefix = uuid.uuid4().hex
+
+        new_names = []
+        for i in xrange(N):
+            new_names.append('{1} Reseller N{0}'.format(i, prefix))
+
+        mailroute.Reseller.bulk_create([{'name': name} for name in new_names])
+        resellers = mailroute.Reseller.filter(name__startswith='{0} Reseller N'.format(prefix))
+        len(resellers).should.be.equal(N)
+        set(obj.name for obj in resellers.fetch()).should.be.equal(set(new_names))
+
     def test_branding(self):
+        False.should.be.ok      # TODO: stack overflow during the test
         prefix = uuid.uuid4().hex
         new_name = '{0} Reseller'.format(prefix)
         new_one = mailroute.Reseller.create(name=new_name)
