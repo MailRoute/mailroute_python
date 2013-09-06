@@ -63,10 +63,17 @@ class TestCustomMethods(base.AccessTest):
         res_obj.delete_admin(ad_mail)
 
     def test_branding(self):
+        prefix = uuid.uuid4().hex
+        new_name = '{0} Reseller'.format(prefix)
         new_one = mailroute.Reseller.create(name=new_name)
 
-        new_one.branding_info.should.be.a(mailroute.Branding.BrandingEntity)
+        new_one.branding_info.should.be.a(mailroute.Branding.Entity)
         new_one.branding_info.reseller.should.be.equal(new_one)
 
         mailroute.Reseller.filter.when.called_with(branding_info__color='red').should. \
             throw(mailroute.InvalidFilter)
+        new_one.delete()
+
+
+if __name__ == '__main__':
+    unittest.main()
