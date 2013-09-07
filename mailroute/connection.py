@@ -60,14 +60,20 @@ class Resource(object):
 
     def _handle_error(self, error, Error4xx):
         res = error.response
+        try:
+            description = res.json()
+        except:
+            description = {}
+
         if 400 <= res.status_code <= 499:
             if res.status_code == 401:
-                raise AuthorizationError, res.url
-            raise Error4xx, res.url
+                raise AuthorizationError, (res.url, description)
+            raise Error4xx, (res.url, description)
         elif 500 <= res.status_code <= 599:
-            raise InternalError, (res.status_code, res.reason or 'Unknown reason', res.url)
+            raise InternalError, (res.status_code, res.reason or 'Unknown reason',
+                                  res.url, description)
         else:
-            raise StrangeAnswer, (res, res.url)
+            raise StrangeAnswer, (res, res.url, description)
 
     def get(self, **opts):
         try:
