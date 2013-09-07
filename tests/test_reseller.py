@@ -6,10 +6,34 @@ import unittest
 import mailroute
 import httpretty
 from mailroute.resources import contacts
-from mailroute import queryset
-from tests import base
+from tests import queryset
 
-class TestCustomMethods(base.AccessTest):
+class TestCustomMethods(queryset.TestQueries):
+
+    ResClass = mailroute.Reseller
+
+    class Resource(queryset.TestQueries.Resource):
+
+        def generate(self, N, suffix='A'):
+            objs = []
+            names = []
+            for i in xrange(N):
+                new_name = '{1} {resname} {2} N{0}'.format(i, self._uniq, suffix,
+                                                           resname=self._RClass.__name__)
+                new_one = mailroute.Reseller.create(name=new_name)
+                names.append(new_name)
+                objs.append(new_one)
+            return objs, names
+
+        def filter_prefixed(self, tail=''):
+            if tail:
+                tail = ' ' + tail
+            query = mailroute.Reseller.filter(name__startswith='{0} {resname}{tail}'. \
+                format(self._uniq, resname=self._RClass.__name__, tail=tail)).all()
+            return query
+
+        def field(self, obj):
+            return obj.name
 
     def test_contacts(self):
         prefix = uuid.uuid4().hex
@@ -36,7 +60,7 @@ class TestCustomMethods(base.AccessTest):
         contact1.should.be.equal(contact2)
 
         len(res_obj.contacts.filter(email='{0}@Unknown'.format(prefix))).should.be.equal(0)
-        res_obj.contacts.filter.when.called_with(first_name='Unknown').should.throw(queryset.InvalidFilter)
+        res_obj.contacts.filter.when.called_with(first_name='Unknown').should.throw(mailroute.InvalidFilter)
         res_obj.delete()
 
     def test_fresh_admins(self):
