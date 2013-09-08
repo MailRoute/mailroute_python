@@ -209,12 +209,12 @@ class FilteredSubSet(object):
                     query = self
                 return query.limit(stop - start).fetch()
         else:
-            self._cache_until(ind)
+            self._fill_cache_until(ind)
             info = self._cached['objects'][ind]
             o = self._res.make_instance(pre_filled=info)
             return o
 
-    def _cache_until(self, ind):
+    def _fill_cache_until(self, ind):
         if len(self) > ind:
             pass
         else:
