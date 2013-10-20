@@ -17,12 +17,7 @@ class InitializationError(Exception):
 class DocumentMetaclass(type):
 
     def __new__(cls, name, bases, attrs):
-        # if a base class just call super
-        metaclass = attrs.get('my_metaclass')
         super_new = super(DocumentMetaclass, cls).__new__
-
-        if metaclass and issubclass(metaclass, DocumentMetaclass):
-            return super_new(cls, name, bases, attrs)
 
         attrs['_field_names'] = cls.sieved_fields(attrs)
 
