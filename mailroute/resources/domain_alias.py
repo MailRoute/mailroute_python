@@ -14,8 +14,6 @@ class DomainAlias(QuerySet):
         domain = ForeignField(to_collection='resources.domain.Domain', back_to='domain_aliases')
         name = SmartField()
 
-    Entity = DomainAliasEntity
-
 class DomainWithAlias(QuerySet):
     class DomainWithAliasEntity(BaseCreatableDocument):
         class Meta:
@@ -24,5 +22,3 @@ class DomainWithAlias(QuerySet):
         domain = OneToOne(to_collection='resources.domain.Domain')
         name = SmartField()
         type = SmartField()
-
-    Entity = DomainWithAliasEntity

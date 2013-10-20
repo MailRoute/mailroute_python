@@ -46,13 +46,9 @@ class PolicyDomain(QuerySet):
 
         domain = OneToOne(to_collection='resources.domain.Domain')
 
-    Entity = PolicyDomainEntity
-
 class PolicyUser(QuerySet):
     class PolicyUserEntity(BaseDocument, CommonPolicyMixin):
         class Meta:
             entity_name = 'policy_user'
 
         email_account = OneToOne(to_collection='resources.email_account.EmailAccount')
-
-    Entity = PolicyUserEntity

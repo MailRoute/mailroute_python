@@ -30,5 +30,3 @@ class Reseller(QuerySet):
 
         def create_customer(self, params):
             return self.customers.create(reseller=self, **params)
-
-    Entity = ResellerEntity

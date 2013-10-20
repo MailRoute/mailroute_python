@@ -16,5 +16,3 @@ class MailServer(QuerySet):
         sasl_password = SmartField()
         server = SmartField()
         use_sasl = SmartField()
-
-    Entity = MailServerEntity

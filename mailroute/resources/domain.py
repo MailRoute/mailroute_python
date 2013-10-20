@@ -27,8 +27,6 @@ class Domain(QuerySet):
         outbound_enabled = SmartField()
         wblist = OneToMany(to_collection='resources.wblist.WBList')
 
-    Entity = DomainEntity
-
     def get_quaranine(self):
         pass
 

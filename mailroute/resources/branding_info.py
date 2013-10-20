@@ -24,5 +24,3 @@ class Branding(QuerySet):
         subdomain = SmartField()
         contact_us_url = SmartField()
         page_color = SmartField()
-
-    Entity = BrandingEntity

@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 import itertools
 from . import connection
+from . import document
+
+class ImproperlyConfiguredQuery(Exception):
+    pass
 
 class MultipleObjectsReturned(Exception):
     pass
@@ -55,12 +59,38 @@ class QueryResource(object):
     def allowed_to_sort_by(self, field_name):
         return self.Entity.allowed_to_sort_by(field_name)
 
+class QManager(type):
+
+    def __new__(cls, name, bases, attrs):
+        super_new = super(QManager, cls).__new__
+
+        if not getattr(attrs.get('Meta'), 'abstract', False):
+            attrs['Entity'] = cls.find_document_basis(name, attrs)
+
+        # create the real query class
+        new_class = super_new(cls, name, bases, attrs)
+        return new_class
+
+    @classmethod
+    def find_document_basis(cls, name, attrs):
+        for possible_basis in attrs.itervalues():
+            try:
+                if issubclass(possible_basis, document.AbstractDocument):
+                    return possible_basis
+            except TypeError:
+                pass            # ignore all fields with the exception of class fields
+        raise ImproperlyConfiguredQuery, name
+
 class QuerySet(object):
     '''
     It's a base class for entire collections operations.
     '''
 
-    _virtual = False
+    class Meta:
+        abstract = True
+        virtual = False
+
+    __metaclass__ = QManager
     ResourceClass = QueryResource
 
     @classmethod
@@ -115,7 +145,11 @@ class QuerySet(object):
 
 class FilteredSubSet(object):
 
-    _virtual = False
+    class Meta:
+        abstract = True
+        virtual = False
+
+    __metaclass__ = QManager
 
     def __init__(self, resource, filters={}):
         self._res = resource
@@ -261,7 +295,9 @@ class VirtualQueryResource(QueryResource):
 
 class VirtualQuerySet(FilteredSubSet):
 
-    _virtual = True
+    class Meta:
+        abstract = True
+        virtual = True
 
     def __init__(self, linked_entity_name, main_id, **kwargs):
         res = VirtualQueryResource(self.Entity, (linked_entity_name, main_id))

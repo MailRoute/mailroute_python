@@ -49,10 +49,10 @@ class Resolver(object):
 
         try:
             mod = importlib.import_module(base_name)
-        except:
+        except ImportError:
             try:
                 mod = importlib.import_module('mailroute.{0}'.format(base_name))
-            except:
+            except ImportError:
                 mod = self._instance_module
 
         self._mod_cache[base_name] = mod
@@ -317,7 +317,7 @@ class OneToMany(AbstractRelation):
         super(OneToMany, self).__init__(name=name, required=required)
 
     def _new_query(self, owner, ColClass, field_name, instance):
-        if ColClass._virtual:
+        if ColClass.Meta.virtual:
             return ColClass(owner.entity_name(), instance.id)
         else:
             return ColClass().filter(**{field_name: instance.id})

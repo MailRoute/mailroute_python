@@ -14,5 +14,3 @@ class LocalPartAlias(QuerySet):
         email_account = ForeignField(to_collection='resources.email_account.EmailAccount', back_to='localpart_aliases')
         localpart = SmartField()
         type = SmartField()
-
-    Entity = LocalPartAliasEntity

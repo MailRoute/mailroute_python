@@ -12,5 +12,3 @@ class OutboundServer(QuerySet):
 
         domain = ForeignField(to_collection='resources.domain.Domain', back_to='outbound_servers')
         server = SmartField()
-
-    Entity = OutboundServerEntity

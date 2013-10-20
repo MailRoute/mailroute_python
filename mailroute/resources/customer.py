@@ -20,8 +20,6 @@ class Customer(QuerySet):
         domains = OneToMany(to_collection='resources.domain.Domain')
         admins = OneToMany(to_collection='resources.admins.Admin')
 
-    Entity = CustomerEntity
-
     def create_admin(self, email, send_welcome):
         return self.admins.create(email=email, send_welcome=send_welcome)
 

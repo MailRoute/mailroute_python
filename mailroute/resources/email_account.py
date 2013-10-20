@@ -46,8 +46,6 @@ class EmailAccount(QuerySet):
             self.password = new_pass
             self.save()
 
-    Entity = EmailAccountEntity
-
     @classmethod
     def create(cls, *args, **initial):
         if len(args) == 1 and isinstance(args[0], basestring):

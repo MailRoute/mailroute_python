@@ -14,8 +14,6 @@ class NotificationAccountTask(QuerySet):
         enabled = SmartField()
         priority = SmartField()
 
-    Entity = NotificationAccountTaskEntity
-
 class NotificationDomainTask(QuerySet):
     class NotificationDomainTaskEntity(BaseDocument):
         class Meta:
@@ -24,5 +22,3 @@ class NotificationDomainTask(QuerySet):
         domain = ForeignField(to_collection='resources.domain.Domain', back_to='notification_tasks')
         enabled = SmartField()
         priority = SmartField()
-
-    Entity = NotificationDomainTaskEntity
