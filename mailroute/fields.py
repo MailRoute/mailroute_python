@@ -35,9 +35,10 @@ class LazyLink(object):
 
 class Resolver(object):
 
+    _mod_cache = {}
+
     def __init__(self, ctx):
         self._instance_module = importlib.import_module(ctx.__module__)
-        self._mod_cache = {}
 
     def module_by_name(self, name):
         assert isinstance(name, basestring), 'Name should be string'
