@@ -37,18 +37,29 @@ class Resolver(object):
 
     def __init__(self, ctx):
         self._instance_module = importlib.import_module(ctx.__module__)
+        self._mod_cache = {}
+
+    def module_by_name(self, name):
+        assert isinstance(name, basestring), 'Name should be string'
+        base_name = '.'.join(name.split('.')[:-1])
+
+        if base_name in self._mod_cache:
+            return self._mod_cache[base_name]
+
+        try:
+            mod = importlib.import_module(base_name)
+        except:
+            try:
+                mod = importlib.import_module('mailroute.{0}'.format(base_name))
+            except:
+                mod = self._instance_module
+
+        self._mod_cache[base_name] = mod
+        return mod
 
     def find_class(self, class_or_name):
         if isinstance(class_or_name, basestring):
-            base_name = '.'.join(class_or_name.split('.')[:-1])
-            # TODO: we need some caching for module find
-            try:
-                mod = importlib.import_module(base_name)
-            except:
-                try:
-                    mod = importlib.import_module('mailroute.{0}'.format(base_name))
-                except:
-                    mod = self._instance_module
+            mod = self.module_by_name(class_or_name)
             return getattr(mod, class_or_name.split('.')[-1])
         else:
             return class_or_name
