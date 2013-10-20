@@ -18,7 +18,7 @@ class Customer(QuerySet):
         reseller = ForeignField(to_collection='resources.reseller.Reseller', back_to='customers')
         contacts = OneToMany(to_collection='resources.contacts.ContactCustomer')
         domains = OneToMany(to_collection='resources.domain.Domain')
-        admins = OneToMany(to_collection='resources.admins.Admins')
+        admins = OneToMany(to_collection='resources.admins.Admin')
 
     Entity = CustomerEntity
 

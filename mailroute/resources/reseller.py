@@ -16,7 +16,7 @@ class Reseller(QuerySet):
         branding_info = OneToOne(to_collection='resources.branding_info.Branding')
         contacts = OneToMany(to_collection='resources.contacts.ContactReseller')
         customers = OneToMany(to_collection='resources.customer.Customer')
-        admins = OneToMany(to_collection='resources.admins.Admins')
+        admins = OneToMany(to_collection='resources.admins.Admin')
 
         def create_admin(self, email, send_welcome):
             return self.admins.create(email=email, send_welcome=send_welcome)
