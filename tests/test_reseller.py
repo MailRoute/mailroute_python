@@ -81,7 +81,7 @@ class TestCustomMethods(queryset.TestQueries):
         new_admin.send_welcome.should.be.true
         new_admin.id.should_not.be.none
 
-        (found_admin,) = mailroute.Admins.filter(email=ad_mail).fetch()
+        (found_admin,) = mailroute.Admin.filter(email=ad_mail).fetch()
         found_admin.should.be.equal(new_admin)
 
         res_obj.delete_admin(ad_mail)

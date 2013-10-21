@@ -11,7 +11,7 @@ class TestSchema(base.Test):
     @property
     def entity_classes(self):
         return [
-            mailroute.Admins,
+            mailroute.Admin,
             mailroute.Branding,
             mailroute.ContactCustomer,
             mailroute.ContactDomain,
