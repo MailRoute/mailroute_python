@@ -12,5 +12,5 @@ class WBList(QuerySet):
 
         wb = SmartField(required=True)
         mail_address = SmartField(required=True)
-        email_account = ForeignField(name='mail_addr', to_collection='resources.email_account.EmailAccount', back_to='wblist')
-        domain = ForeignField(to_collection='resources.domain.Domain', back_to='wblist')
+        email_account = ForeignField(name='mail_addr', to_collection='resources.email_account.EmailAccount', related_name='wblist')
+        domain = ForeignField(to_collection='resources.domain.Domain', related_name='wblist')

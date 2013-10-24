@@ -36,32 +36,44 @@ class LazyLink(object):
 class Resolver(object):
 
     _mod_cache = {}
+    _class_cache = {}
 
     def __init__(self, ctx):
         self._instance_module = importlib.import_module(ctx.__module__)
 
-    def module_by_name(self, name):
-        assert isinstance(name, basestring), 'Name should be string'
-        base_name = '.'.join(name.split('.')[:-1])
+    @classmethod
+    def register(cls, Class):
+        cls._class_cache[(Class.__module__, Class.__name__)] = Class
 
-        if base_name in self._mod_cache:
-            return self._mod_cache[base_name]
+    def module_by_name(self, name):
+        assert isinstance(name, basestring), 'Name should be a string'
+
+        if name in self._mod_cache:
+            return self._mod_cache[name]
 
         try:
-            mod = importlib.import_module(base_name)
+            mod = importlib.import_module(name)
         except ImportError:
             try:
-                mod = importlib.import_module('mailroute.{0}'.format(base_name))
+                mod = importlib.import_module('mailroute.{0}'.format(name))
             except ImportError:
                 mod = self._instance_module
 
-        self._mod_cache[base_name] = mod
+        self._mod_cache[name] = mod
         return mod
 
     def find_class(self, class_or_name):
         if isinstance(class_or_name, basestring):
-            mod = self.module_by_name(class_or_name)
-            return getattr(mod, class_or_name.split('.')[-1])
+            name = class_or_name
+            pieces = name.split('.')
+            base_name, cls_name = '.'.join(pieces[:-1]), pieces[-1]
+            if (base_name, cls_name) in self._class_cache:
+                return self._class_cache[base_name, cls_name]
+            else:
+                mod = self.module_by_name(base_name)
+                Class = getattr(mod, cls_name)
+                self._class_cache[base_name, cls_name] = Class
+                return Class
         else:
             return class_or_name
 
@@ -252,6 +264,15 @@ class AbstractRelation(SmartField):
 
 class SingleRelation(AbstractRelation):
 
+    def __init__(self, *args, **kwargs):
+        self._back_to = kwargs.pop('related_name', None)
+        self._rel_col = kwargs.pop('to_collection', None)
+        super(AbstractRelation, self).__init__(*args, **kwargs)
+
+    def apply_related_name(self, new_name):
+        assert self._back_to is None, 'It\'s not possible to replace existing related name'
+        self._back_to = new_name
+
     def _transformer(self, for_instance):
         rfactory = lambda raw_value: Reference(lambda: for_instance._mark_as_forced(self.name), self._rel_col, raw_value)
         EntityClass = self.find_entity_class(for_instance) # TODO: here should be field owner context
@@ -287,15 +308,18 @@ class SingleRelation(AbstractRelation):
                 return False
 
 class ForeignField(SingleRelation):
-    def __init__(self, name=None, required=False, to_collection=None, back_to=None):
-        self._rel_col = to_collection
-        self._back_to = back_to
-        super(ForeignField, self).__init__(name=name, required=required, default=lambda: None, nullable=True)
+    def __init__(self, name=None, required=False, to_collection=None, related_name=None):
+        super(ForeignField, self).__init__(name=name, required=required,
+                                           default=lambda: None, nullable=True,
+                                           to_collection=to_collection,
+                                           related_name=related_name)
 
 class OneToOne(SingleRelation):
-    def __init__(self, name=None, required=False, to_collection=None):
-        self._rel_col = to_collection
-        super(OneToOne, self).__init__(name=name, required=required, default=lambda: None, nullable=True)
+    def __init__(self, name=None, required=False, to_collection=None, related_name=None):
+        super(OneToOne, self).__init__(name=name, required=required,
+                                       default=lambda: None, nullable=True,
+                                       to_collection=to_collection,
+                                       related_name=related_name)
 
 class OneToMany(AbstractRelation):
 

@@ -15,7 +15,7 @@ class Customer(QuerySet):
         branding_info = OneToOne(to_collection='resources.branding_info.Branding')
         is_full_user_list = SmartField()
         reported_user_count = SmartField()
-        reseller = ForeignField(to_collection='resources.reseller.Reseller', back_to='customers')
+        reseller = ForeignField(to_collection='resources.reseller.Reseller', related_name='customers')
         contacts = OneToMany(to_collection='resources.contacts.ContactCustomer')
         domains = OneToMany(to_collection='resources.domain.Domain')
         admins = OneToMany(to_collection='resources.admins.Admin')

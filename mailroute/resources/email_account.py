@@ -14,7 +14,7 @@ class EmailAccount(QuerySet):
         confirm_password = SmartField()
         contact = OneToOne(to_collection='resources.contact.Contact')
         create_opt = SmartField()
-        domain = ForeignField(to_collection='resources.domain.Domain', back_to='email_accounts')
+        domain = ForeignField(to_collection='resources.domain.Domain', related_name='email_accounts')
         localpart = SmartField()
         localpart_aliases = OneToMany(to_collection='resources.localpart_alias.LocalPartAlias')
         notification_tasks = OneToMany(to_collection='resources.notification_task.NotificationAccountTask')

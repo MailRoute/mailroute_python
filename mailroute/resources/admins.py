@@ -18,5 +18,5 @@ class Admin(VirtualQuerySet):
         last_login = SmartField()
         send_welcome = SmartField()
         username = SmartField()
-        reseller = ForeignField(to_collection='resources.reseller.Reseller', back_to='admins')
-        customer = ForeignField(to_collection='resources.customer.Customer', back_to='admins')
+        reseller = ForeignField(to_collection='resources.reseller.Reseller', related_name='admins')
+        customer = ForeignField(to_collection='resources.customer.Customer', related_name='admins')

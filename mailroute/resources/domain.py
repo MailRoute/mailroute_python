@@ -13,7 +13,7 @@ class Domain(QuerySet):
         active = SmartField()
         bounce_unlisted = SmartField()
         contacts = OneToMany(to_collection='resources.contacts.ContactDomain')
-        customer = ForeignField(to_collection='resources.customer.Customer', back_to='domains')
+        customer = ForeignField(to_collection='resources.customer.Customer', related_name='domains')
         deliveryport = SmartField()
         domain_aliases = OneToMany(to_collection='resources.domain_alias.DomainAlias')
         email_accounts = OneToMany(to_collection='resources.email_account.EmailAccount')

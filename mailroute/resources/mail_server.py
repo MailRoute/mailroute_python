@@ -10,7 +10,7 @@ class MailServer(QuerySet):
         class Meta:
             entity_name = 'mail_server'
 
-        domain = ForeignField(to_collection='resources.domain.Domain', back_to='mail_servers')
+        domain = ForeignField(to_collection='resources.domain.Domain', related_name='mail_servers')
         priority = SmartField()
         sasl_login = SmartField()
         sasl_password = SmartField()

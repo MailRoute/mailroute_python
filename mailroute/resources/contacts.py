@@ -43,14 +43,14 @@ class ContactCustomer(QuerySet):
         class Meta:
             entity_name = 'contact_customer'
 
-        customer = ForeignField(to_collection='resources.Customer', back_to='contacts')
+        customer = ForeignField(to_collection='resources.Customer', related_name='contacts')
 
 class ContactDomain(QuerySet):
     class ContactDomainEntity(BaseCreatableDocument, CommonContactMixin):
         class Meta:
             entity_name = 'contact_domain'
 
-        domain = ForeignField(to_collection='resources.domain.Domain', back_to='contacts')
+        domain = ForeignField(to_collection='resources.domain.Domain', related_name='contacts')
 
 class ContactEmailAccount(QuerySet):
     class ContactEmailAccountEntity(BaseCreatableDocument, CommonContactMixin):
@@ -64,4 +64,4 @@ class ContactReseller(QuerySet):
         class Meta:
             entity_name = 'contact_reseller'
 
-        reseller = ForeignField(to_collection='resources.reseller.Reseller', back_to='contacts')
+        reseller = ForeignField(to_collection='resources.reseller.Reseller', related_name='contacts')

@@ -11,6 +11,6 @@ class LocalPartAlias(QuerySet):
             entity_name = 'localpart_alias'
 
         domain = OneToOne(to_collection='resources.domain.Domain')
-        email_account = ForeignField(to_collection='resources.email_account.EmailAccount', back_to='localpart_aliases')
+        email_account = ForeignField(to_collection='resources.email_account.EmailAccount', related_name='localpart_aliases')
         localpart = SmartField()
         type = SmartField()

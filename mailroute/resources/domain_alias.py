@@ -11,7 +11,7 @@ class DomainAlias(QuerySet):
             entity_name = 'domain_alias'
 
         active = SmartField()
-        domain = ForeignField(to_collection='resources.domain.Domain', back_to='domain_aliases')
+        domain = ForeignField(to_collection='resources.domain.Domain', related_name='domain_aliases')
         name = SmartField()
 
 class DomainWithAlias(QuerySet):
