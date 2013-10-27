@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import re
 import inspect
 import importlib
 import datetime
@@ -15,6 +16,14 @@ class UnknownType(IncompatibleType):
     pass
 class ReferenceIssue(Exception):
     pass
+
+def rel_field_name_for(cls):
+    conv = re.sub('(((?<=[a-z])[A-Z])|([A-Z](?![A-Z]|$)))', '_\\1', cls.__name__)
+    underlined = conv.lower().strip('_')
+    if underlined.endswith('s'):
+        return underlined + 'es'
+    else:
+        return underlined + 's'
 
 class LazyLink(object):
     def __init__(self, link):
@@ -62,13 +71,15 @@ class Resolver(object):
         self._mod_cache[name] = mod
         return mod
 
-    def find_class(self, class_or_name):
+    def find_class(self, class_or_name, only_registered=False):
         if isinstance(class_or_name, basestring):
             name = class_or_name
             pieces = name.split('.')
             base_name, cls_name = '.'.join(pieces[:-1]), pieces[-1]
             if (base_name, cls_name) in self._class_cache:
                 return self._class_cache[base_name, cls_name]
+            elif only_registered:
+                return None
             else:
                 mod = self.module_by_name(base_name)
                 Class = getattr(mod, cls_name)
