@@ -17,13 +17,16 @@ class UnknownType(IncompatibleType):
 class ReferenceIssue(Exception):
     pass
 
-def rel_field_name_for(cls):
+def rel_field_name_for(cls, plural=True):
     conv = re.sub('(((?<=[a-z])[A-Z])|([A-Z](?![A-Z]|$)))', '_\\1', cls.__name__)
     underlined = conv.lower().strip('_')
-    if underlined.endswith('s'):
-        return underlined + 'es'
+    if plural:
+        if underlined.endswith('s'):
+            return underlined + 'es'
+        else:
+            return underlined + 's'
     else:
-        return underlined + 's'
+        return underlined
 
 class LazyLink(object):
     def __init__(self, link):
@@ -63,10 +66,7 @@ class Resolver(object):
         try:
             mod = importlib.import_module(name)
         except ImportError:
-            try:
-                mod = importlib.import_module('mailroute.{0}'.format(name))
-            except ImportError:
-                mod = self._instance_module
+            mod = self._instance_module
 
         self._mod_cache[name] = mod
         return mod
