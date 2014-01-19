@@ -5,7 +5,7 @@ import uuid
 import unittest
 import mailroute
 import httpretty
-from tests import base
+from mailroute.tests import base
 
 class TestCustomMethods(base.Test):
 

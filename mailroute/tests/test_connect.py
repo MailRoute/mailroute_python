@@ -4,7 +4,7 @@ import json
 import unittest
 import mailroute
 import httpretty
-from tests import base
+from mailroute.tests import base
 
 class TestConnection(base.Test):
 

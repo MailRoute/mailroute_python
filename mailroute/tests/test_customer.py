@@ -6,7 +6,7 @@ import unittest
 import mailroute
 import httpretty
 from mailroute.resources import contacts
-from tests import queryset
+from mailroute.tests import queryset
 
 class TestCustomMethods(queryset.TestQueries):
 

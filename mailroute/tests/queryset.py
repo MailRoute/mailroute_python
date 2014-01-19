@@ -6,7 +6,7 @@ import unittest
 import mailroute
 import httpretty
 import contextlib
-from tests import base
+from mailroute.tests import base
 
 class TestQueries(base.AccessTest):
 
