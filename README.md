@@ -1,7 +1,6 @@
-mailroute_python
+Mailroute
 ================
 
-.. image:: https://travis-ci.org/MailRoute/mailroute_python.png?branch=master
-    :target: https://travis-ci.org/MailRoute/mailroute_python
+[![Build Status](https://secure.travis-ci.org/MailRoute/mailroute_python.png)](http://travis-ci.org/MailRoute/mailroute_python)
 
 Python client for [mailroute.net](http://mailroute.net).
